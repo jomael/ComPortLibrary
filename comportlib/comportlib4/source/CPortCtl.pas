@@ -215,13 +215,21 @@ type
   end;
 
   // property types
-  TLedBitmap = Graphics.TBitmap;
+
   TLedKind = (lkRedLight, lkGreenLight, lkBlueLight, lkYellowLight,
     lkPurpleLight, lkBulb, lkCustom);
   TComLedSignal = (lsConn, lsCTS, lsDSR, lsRLSD, lsRing, lsRx, lsTx);
   TLedState = (lsOff, lsOn);
-  TComLedGlyphs = array[TLedState] of TLedBitmap;
+
   TLedStateEvent = procedure(Sender: TObject; AState: TLedState) of object;
+
+  //TLedBitmap = Graphics.TBitmap; { type of alias doesn't work when wrapping for C++Builder.}
+
+  TLedBitmap = class (Graphics.TBitmap)
+      // WE HAVE TO subclass it, even though we don't do anything extra with it.
+  end;
+
+  TComLedGlyphs = array[TLedState] of TLedBitmap;  
 
   // led control that shows the state of serial signals
   TComLed = class(TGraphicControl)
@@ -1223,7 +1231,7 @@ end;
 procedure TComLed.SetState(const Value: TLedState);
 begin
   if FComPort <> nil then
-    raise EComPort.CreateNoWinCode(CError_LedStateFailed);
+    raise EComPort.Create('ComLed ',CError_LedStateFailed);
   SetStateInternal(Value);
 end;
 

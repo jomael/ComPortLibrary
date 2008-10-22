@@ -6,7 +6,8 @@
  * maintained by Lars B. Dybdahl, 2003                *
  * Homepage: http://comport.sf.net/                   *
  *                                                    *
- * Fixed up for Delphi 2009 by W.Postma.              *
+ * Fixed up for Delphi 2007, Delphi 2009, and         *
+ * C++ Builder 2007 and 2009,  by W.Postma.           *
  *****************************************************)
 
 unit CPortReg;

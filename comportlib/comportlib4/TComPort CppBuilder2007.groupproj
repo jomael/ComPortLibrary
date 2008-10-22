@@ -1,0 +1,54 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectGuid>{c26427d2-185c-4ce7-889d-daa8ae664f4b}</ProjectGuid>
+  </PropertyGroup>
+  <ItemGroup />
+  <ItemGroup>
+    <Projects Include="Examples\cbuilder\MiniTermCB2007.cbproj" />
+    <Projects Include="source\CPortLibCB2007.cbproj" />
+    <Projects Include="source\DsgnCPortLibCB2007.cbproj" />
+  </ItemGroup>
+  <ProjectExtensions>
+    <Borland.Personality>Default.Personality</Borland.Personality>
+    <Borland.ProjectType />
+    <BorlandProject>
+<BorlandProject xmlns=""><Default.Personality></Default.Personality></BorlandProject></BorlandProject>
+  </ProjectExtensions>
+  <Target Name="CPortLibCB2007">
+    <MSBuild Projects="source\CPortLibCB2007.cbproj" Targets="" />
+  </Target>
+  <Target Name="CPortLibCB2007:Clean">
+    <MSBuild Projects="source\CPortLibCB2007.cbproj" Targets="Clean" />
+  </Target>
+  <Target Name="CPortLibCB2007:Make">
+    <MSBuild Projects="source\CPortLibCB2007.cbproj" Targets="Make" />
+  </Target>
+  <Target Name="DsgnCPortLibCB2007">
+    <MSBuild Projects="source\DsgnCPortLibCB2007.cbproj" Targets="" />
+  </Target>
+  <Target Name="DsgnCPortLibCB2007:Clean">
+    <MSBuild Projects="source\DsgnCPortLibCB2007.cbproj" Targets="Clean" />
+  </Target>
+  <Target Name="DsgnCPortLibCB2007:Make">
+    <MSBuild Projects="source\DsgnCPortLibCB2007.cbproj" Targets="Make" />
+  </Target>
+  <Target Name="MiniTermCB2007">
+    <MSBuild Projects="Examples\cbuilder\MiniTermCB2007.cbproj" Targets="" />
+  </Target>
+  <Target Name="MiniTermCB2007:Clean">
+    <MSBuild Projects="Examples\cbuilder\MiniTermCB2007.cbproj" Targets="Clean" />
+  </Target>
+  <Target Name="MiniTermCB2007:Make">
+    <MSBuild Projects="Examples\cbuilder\MiniTermCB2007.cbproj" Targets="Make" />
+  </Target>
+  <Target Name="Build">
+    <CallTarget Targets="CPortLibCB2007;DsgnCPortLibCB2007;MiniTermCB2007" />
+  </Target>
+  <Target Name="Clean">
+    <CallTarget Targets="CPortLibCB2007:Clean;DsgnCPortLibCB2007:Clean;MiniTermCB2007:Clean" />
+  </Target>
+  <Target Name="Make">
+    <CallTarget Targets="CPortLibCB2007:Make;DsgnCPortLibCB2007:Make;MiniTermCB2007:Make" />
+  </Target>
+  <Import Condition="Exists('$(MSBuildBinPath)\Borland.Group.Targets')" Project="$(MSBuildBinPath)\Borland.Group.Targets" />
+</Project>
