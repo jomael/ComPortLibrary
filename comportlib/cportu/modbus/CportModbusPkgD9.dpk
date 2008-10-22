@@ -1,0 +1,44 @@
+package CportModbusPkgD9;
+
+{$R *.res}
+{$R 'CportModbus.dcr'}
+{$ALIGN 8}
+{$ASSERTIONS ON}
+{$BOOLEVAL OFF}
+{$DEBUGINFO ON}
+{$EXTENDEDSYNTAX ON}
+{$IMPORTEDDATA ON}
+{$IOCHECKS OFF}
+{$LOCALSYMBOLS ON}
+{$LONGSTRINGS ON}
+{$OPENSTRINGS ON}
+{$OPTIMIZATION OFF}
+{$OVERFLOWCHECKS OFF}
+{$RANGECHECKS OFF}
+{$REFERENCEINFO ON}
+{$SAFEDIVIDE OFF}
+{$STACKFRAMES OFF}
+{$TYPEDADDRESS OFF}
+{$VARSTRINGCHECKS ON}
+{$WRITEABLECONST ON}
+{$MINENUMSIZE 1}
+{$IMAGEBASE $400000}
+{$DESCRIPTION 'MODBUS SERIAL COMMUNICATIONS Components (requires CPortLib9) '}
+{$IMPLICITBUILD ON}
+{$DEFINE DEBUGINFO_ON}
+{$DEFINE MODBUS_DEBUG}
+
+requires
+  vcl,
+  rtl,
+  vclx,
+  CPortLib9;
+
+contains
+  CportModbus in 'CportModbus.pas',
+  CportModbusUtils in 'CportModbusUtils.pas',
+  CportModbusThread in 'CportModbusThread.pas',
+  CportModbusPacket in 'CportModbusPacket.pas',
+  CportTimerUtils in 'CportTimerUtils.pas';
+
+end.

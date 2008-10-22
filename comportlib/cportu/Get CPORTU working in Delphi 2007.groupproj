@@ -1,0 +1,64 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectGuid>{7c4ab362-4d3c-46c8-9597-1d29dcc99b6d}</ProjectGuid>
+  </PropertyGroup>
+  <ItemGroup />
+  <ItemGroup>
+    <Projects Include="Examples\delphi\MiniTerm.dproj" />
+    <Projects Include="source\CPortLib11.dproj" />
+    <Projects Include="source\DsgnCPort11.dproj" />
+    <Projects Include="tests\CPortUTest_Delphi2007.dproj" />
+  </ItemGroup>
+  <ProjectExtensions>
+    <Borland.Personality>Default.Personality</Borland.Personality>
+    <Borland.ProjectType />
+    <BorlandProject>
+<BorlandProject xmlns=""><Default.Personality></Default.Personality></BorlandProject></BorlandProject>
+  </ProjectExtensions>
+  <Target Name="CPortLib11">
+    <MSBuild Projects="source\CPortLib11.dproj" Targets="" />
+  </Target>
+  <Target Name="CPortLib11:Clean">
+    <MSBuild Projects="source\CPortLib11.dproj" Targets="Clean" />
+  </Target>
+  <Target Name="CPortLib11:Make">
+    <MSBuild Projects="source\CPortLib11.dproj" Targets="Make" />
+  </Target>
+  <Target Name="DsgnCPort11">
+    <MSBuild Projects="source\DsgnCPort11.dproj" Targets="" />
+  </Target>
+  <Target Name="DsgnCPort11:Clean">
+    <MSBuild Projects="source\DsgnCPort11.dproj" Targets="Clean" />
+  </Target>
+  <Target Name="DsgnCPort11:Make">
+    <MSBuild Projects="source\DsgnCPort11.dproj" Targets="Make" />
+  </Target>
+  <Target Name="MiniTerm">
+    <MSBuild Projects="Examples\delphi\MiniTerm.dproj" Targets="" />
+  </Target>
+  <Target Name="MiniTerm:Clean">
+    <MSBuild Projects="Examples\delphi\MiniTerm.dproj" Targets="Clean" />
+  </Target>
+  <Target Name="MiniTerm:Make">
+    <MSBuild Projects="Examples\delphi\MiniTerm.dproj" Targets="Make" />
+  </Target>
+  <Target Name="CPortUTest_Delphi2007">
+    <MSBuild Projects="tests\CPortUTest_Delphi2007.dproj" Targets="" />
+  </Target>
+  <Target Name="CPortUTest_Delphi2007:Clean">
+    <MSBuild Projects="tests\CPortUTest_Delphi2007.dproj" Targets="Clean" />
+  </Target>
+  <Target Name="CPortUTest_Delphi2007:Make">
+    <MSBuild Projects="tests\CPortUTest_Delphi2007.dproj" Targets="Make" />
+  </Target>
+  <Target Name="Build">
+    <CallTarget Targets="CPortLib11;DsgnCPort11;MiniTerm;CPortUTest_Delphi2007" />
+  </Target>
+  <Target Name="Clean">
+    <CallTarget Targets="CPortLib11:Clean;DsgnCPort11:Clean;MiniTerm:Clean;CPortUTest_Delphi2007:Clean" />
+  </Target>
+  <Target Name="Make">
+    <CallTarget Targets="CPortLib11:Make;DsgnCPort11:Make;MiniTerm:Make;CPortUTest_Delphi2007:Make" />
+  </Target>
+  <Import Condition="Exists('$(MSBuildBinPath)\Borland.Group.Targets')" Project="$(MSBuildBinPath)\Borland.Group.Targets" />
+</Project>

@@ -1,0 +1,29 @@
+#------------------------------------------------------------------------------
+VERSION = BWS.01
+#------------------------------------------------------------------------------
+!ifndef ROOT
+ROOT = $(MAKEDIR)\..
+!endif
+#------------------------------------------------------------------------------
+MAKE = $(ROOT)\bin\make.exe -$(MAKEFLAGS) -f$**
+DCC = $(ROOT)\bin\dcc32.exe $**
+BRCC = $(ROOT)\bin\brcc32.exe $**
+#------------------------------------------------------------------------------
+PROJECTS = CPortLib7.bpl DsgnCPort7.bpl CPortUTest_Delphi7.exe MiniTerm.exe
+#------------------------------------------------------------------------------
+default: $(PROJECTS)
+#------------------------------------------------------------------------------
+
+CPortLib7.bpl: source\CPortLib7.dpk
+  $(DCC)
+
+DsgnCPort7.bpl: source\DsgnCPort7.dpk
+  $(DCC)
+
+CPortUTest_Delphi7.exe: tests\CPortUTest_Delphi7.dpr
+  $(DCC)
+
+MiniTerm.exe: Examples\delphi\MiniTerm.dpr
+  $(DCC)
+
+

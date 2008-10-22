@@ -1,0 +1,72 @@
+﻿	<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+		<PropertyGroup>
+			<ProjectGuid>{55DD1D4C-E7CA-4B0F-90B0-8921C84E17B4}</ProjectGuid>
+		</PropertyGroup>
+		<ItemGroup>
+			<Projects Include="source\CPortLib12.dproj">
+				<Dependencies/>
+			</Projects>
+			<Projects Include="source\DsgnCPort12.dproj">
+				<Dependencies/>
+			</Projects>
+			<Projects Include="tests\CPortUTest_Delphi2009.dproj">
+				<Dependencies/>
+			</Projects>
+			<Projects Include="Examples\delphi\MiniTerm2009.dproj">
+				<Dependencies/>
+			</Projects>
+		</ItemGroup>
+		<ProjectExtensions>
+			<Borland.Personality>Default.Personality.12</Borland.Personality>
+			<Borland.ProjectType/>
+			<BorlandProject>
+				<Default.Personality/>
+			</BorlandProject>
+		</ProjectExtensions>
+		<Target Name="CPortLib12">
+			<MSBuild Projects="source\CPortLib12.dproj"/>
+		</Target>
+		<Target Name="CPortLib12:Clean">
+			<MSBuild Targets="Clean" Projects="source\CPortLib12.dproj"/>
+		</Target>
+		<Target Name="CPortLib12:Make">
+			<MSBuild Targets="Make" Projects="source\CPortLib12.dproj"/>
+		</Target>
+		<Target Name="DsgnCPort12">
+			<MSBuild Projects="source\DsgnCPort12.dproj"/>
+		</Target>
+		<Target Name="DsgnCPort12:Clean">
+			<MSBuild Targets="Clean" Projects="source\DsgnCPort12.dproj"/>
+		</Target>
+		<Target Name="DsgnCPort12:Make">
+			<MSBuild Targets="Make" Projects="source\DsgnCPort12.dproj"/>
+		</Target>
+		<Target Name="CPortUTest_Delphi2009">
+			<MSBuild Projects="tests\CPortUTest_Delphi2009.dproj"/>
+		</Target>
+		<Target Name="CPortUTest_Delphi2009:Clean">
+			<MSBuild Targets="Clean" Projects="tests\CPortUTest_Delphi2009.dproj"/>
+		</Target>
+		<Target Name="CPortUTest_Delphi2009:Make">
+			<MSBuild Targets="Make" Projects="tests\CPortUTest_Delphi2009.dproj"/>
+		</Target>
+		<Target Name="MiniTerm2009">
+			<MSBuild Projects="Examples\delphi\MiniTerm2009.dproj"/>
+		</Target>
+		<Target Name="MiniTerm2009:Clean">
+			<MSBuild Targets="Clean" Projects="Examples\delphi\MiniTerm2009.dproj"/>
+		</Target>
+		<Target Name="MiniTerm2009:Make">
+			<MSBuild Targets="Make" Projects="Examples\delphi\MiniTerm2009.dproj"/>
+		</Target>
+		<Target Name="Build">
+			<CallTarget Targets="CPortLib12;DsgnCPort12;CPortUTest_Delphi2009;MiniTerm2009"/>
+		</Target>
+		<Target Name="Clean">
+			<CallTarget Targets="CPortLib12:Clean;DsgnCPort12:Clean;CPortUTest_Delphi2009:Clean;MiniTerm2009:Clean"/>
+		</Target>
+		<Target Name="Make">
+			<CallTarget Targets="CPortLib12:Make;DsgnCPort12:Make;CPortUTest_Delphi2009:Make;MiniTerm2009:Make"/>
+		</Target>
+		<Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+	</Project>

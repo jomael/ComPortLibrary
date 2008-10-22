@@ -1,0 +1,23 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<BorlandProject>
+  <PersonalityInfo>
+    <Option>
+      <Option Name="Personality">Default.Personality</Option>
+      <Option Name="ProjectType"></Option>
+      <Option Name="Version">1.0</Option>
+      <Option Name="GUID">{C131E41D-AADE-4526-83F4-F31BD6DB0DD4}</Option>
+    </Option>
+  </PersonalityInfo>
+  <Default.Personality>
+    
+    
+    
+    <Projects>
+      <Projects Name="CPortLib9.bpl">CPortLib9.bdsproj</Projects>
+      <Projects Name="DsgnCPort9.bpl">DsgnCPort9.bdsproj</Projects>
+      <Projects Name="MiniTerm.exe">..\Examples\delphi\MiniTerm.bdsproj</Projects>
+      <Projects Name="Targets">CPortLib9.bpl DsgnCPort9.bpl MiniTerm.exe</Projects>
+    </Projects>
+    <Dependencies/>
+  </Default.Personality>
+</BorlandProject>

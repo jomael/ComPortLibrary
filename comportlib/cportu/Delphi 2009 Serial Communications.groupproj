@@ -1,0 +1,36 @@
+﻿	<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+		<PropertyGroup>
+			<ProjectGuid>{5B4ACA45-C6F9-4C0B-AC9A-FACE65BD6C1C}</ProjectGuid>
+		</PropertyGroup>
+		<ItemGroup>
+			<Projects Include="Examples\delphi\MiniTerm2009.dproj">
+				<Dependencies/>
+			</Projects>
+		</ItemGroup>
+		<ProjectExtensions>
+			<Borland.Personality>Default.Personality.12</Borland.Personality>
+			<Borland.ProjectType/>
+			<BorlandProject>
+				<Default.Personality/>
+			</BorlandProject>
+		</ProjectExtensions>
+		<Target Name="MiniTerm2009">
+			<MSBuild Projects="Examples\delphi\MiniTerm2009.dproj"/>
+		</Target>
+		<Target Name="MiniTerm2009:Clean">
+			<MSBuild Targets="Clean" Projects="Examples\delphi\MiniTerm2009.dproj"/>
+		</Target>
+		<Target Name="MiniTerm2009:Make">
+			<MSBuild Targets="Make" Projects="Examples\delphi\MiniTerm2009.dproj"/>
+		</Target>
+		<Target Name="Build">
+			<CallTarget Targets="MiniTerm2009"/>
+		</Target>
+		<Target Name="Clean">
+			<CallTarget Targets="MiniTerm2009:Clean"/>
+		</Target>
+		<Target Name="Make">
+			<CallTarget Targets="MiniTerm2009:Make"/>
+		</Target>
+		<Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+	</Project>
