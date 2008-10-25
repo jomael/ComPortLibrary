@@ -1,11 +1,11 @@
 object CPortUTestMainForm: TCPortUTestMainForm
   Left = 296
   Top = 308
-  Width = 644
-  Height = 536
   Caption = 
     'Unit Test for TComPort Component and CPORTU modifications (W. Po' +
     'stma)'
+  ClientHeight = 502
+  ClientWidth = 636
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -18,8 +18,8 @@ object CPortUTestMainForm: TCPortUTestMainForm
   object TraceMemo: TMemo
     Left = 0
     Top = 41
-    Width = 628
-    Height = 459
+    Width = 636
+    Height = 461
     Align = alClient
     Color = 15659985
     Font.Charset = OEM_CHARSET
@@ -38,7 +38,7 @@ object CPortUTestMainForm: TCPortUTestMainForm
   object PanelTop: TPanel
     Left = 0
     Top = 0
-    Width = 628
+    Width = 636
     Height = 41
     Align = alTop
     TabOrder = 1
