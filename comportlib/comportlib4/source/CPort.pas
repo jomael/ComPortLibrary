@@ -248,6 +248,10 @@ type
     FReadAsyncLastError:DWORD;
     FSyncWriteErrors : Integer; // Error counter for Synchronous Writing (October 2008)
     FOverlapped  :Boolean; // True=classic mode, Write=simplified-non-overlapped-Win32-functionality
+    FReadAsyncPtr: PCPortAsync;
+    FWriteAsyncPtr: PCPortAsync;
+
+
 
     function GetTriggersOnRxChar: Boolean;
     procedure SetTriggersOnRxChar(const Value: Boolean);
@@ -266,7 +270,7 @@ type
     procedure SetBuffer(const Value: TComBuffer);
     procedure SetFlowControl(const Value: TComFlowControl);
     function HasLink: Boolean;
-    procedure TxNotifyLink(const Buffer:TCPortBytes; Count: Integer);
+    procedure TxNotifyLink(const Buffer:PCPortAnsiChar; Count: Integer);
     procedure NotifyLink(FLinkEvent: TComLinkEvent);
     procedure SendSignalToLink(Signal: TComLinkEvent; OnOff: Boolean);
     procedure CheckSignals(Open: Boolean);
@@ -293,7 +297,7 @@ type
     procedure DoBeforeClose; dynamic;
     procedure DoBeforeOpen; dynamic;
     procedure DoRxChar(Count: Integer); dynamic;
-    procedure DoRxBuf(const Buffer:TCPortBytes; Count: Integer); dynamic;
+    procedure DoRxBuf(const mBuffer:PCPortAnsiChar; Count: Integer); dynamic;
     procedure DoTxEmpty; dynamic;
     procedure DoBreak; dynamic;
     procedure DoRing; dynamic;
@@ -315,7 +319,7 @@ type
     procedure SetupComPort; virtual;
 
     function _WriteStrWrapper(const Str: AnsiString): Integer; // perform synchronous write operation via Win32 overlapped IO API
-    function _WriteAsyncWrapper(const Buffer:TCPortBytes; Count: Integer): Integer; // perform synchronous write operation using Win32 overlapped IO API
+    function _WriteAsyncWrapper(const mBuffer:PCPortAnsiChar; Count: Integer): Integer; // perform synchronous write operation using Win32 overlapped IO API
 
     function _SyncRead(Data: PAnsiChar; var aCount: Cardinal):Boolean; { Simple Synchronous Read Wrapper.   Overlapped must be false. }
     function _SyncWrite(Data: PAnsiChar; size: dword):Boolean;      { Simple Synchronous Write Wrapper. Overlapped must be false.  }
@@ -344,22 +348,23 @@ type
     function LastErrors: TComErrors;
 
 
-    function Write(const Buffer:TCPortBytes; Count: Integer): Integer;
+    function Write(const mBuffer:PCPortAnsiChar; Count: Integer): Integer;
 
     function WriteStr(const Str: AnsiString): Integer;
-    function Read(Buffer:TCPortBytes; Count: Integer): Integer;
+    function Read(mBuffer:PCPortAnsiChar; Count: Integer): Integer;
     function ReadStr(var Str: AnsiString; Count: Integer): Integer;
 
-    function WriteAsync(const Buffer:TCPortBytes; Count: Integer;
+    function WriteAsync(const Buffer:PCPortAnsiChar; Count: Integer;
       var AsyncPtr: PCPortAsync): Integer;
     function WriteStrAsync(const Str: AnsiString; var AsyncPtr: PCPortAsync): Integer;
 
 
 
-    function ReadAsync(var Buffer:TCPortBytes; Count: Integer;
+    function ReadAsync(mBuffer:PCPortAnsiChar; Count: Integer;
       var AsyncPtr: PCPortAsync): Integer;
-    function ReadStrAsync(var Str: AnsiString; Count: Integer;
-      var AsyncPtr: PCPortAsync): Integer;
+
+    function ReadStrAsync(var Str: AnsiString; Count: Integer; var AsyncPtr: PCPortAsync): Integer;
+
     function WaitForAsync(var AsyncPtr: PCPortAsync): Integer;
     function IsAsyncCompleted(AsyncPtr: PCPortAsync): Boolean;
     procedure WaitForEvent(var Events: TComEvents; StopEvent: THandle;
@@ -481,7 +486,7 @@ type
     procedure SetSize(const Value: Integer);
     procedure SetStartString(const Value: string);
     procedure SetStopString(const Value: string);
-    procedure RxBuf(Sender: TObject; const Buffer:TCportBytes; Count: Integer);
+    procedure RxBuf(Sender: TObject; const Buffer:PCPortAnsiChar; Count: Integer);
     procedure CheckIncludeStrings(var Str: string);
     function Upper(const Str: string): string;
     procedure EmptyBuffer;
@@ -527,32 +532,20 @@ type
   end;
 
   // exception class for ComPort Library errors
-  // Changed signature of constructors so they start with a string to
-  // avoid really ugly C++ Builder problem.  
   EComPort = class(Exception)
-    FCode: Byte;
-  public
-     constructor Create(const Msg: string); overload;
-     constructor Create(port:String; ACode: Byte); overload; { C++ Builder dies if ACode is integer. This is a hack! }
-
-     property Code: Byte read FCode write FCode;
-
-  end;
-
-  // Split into two exception classes: (one with WinCode, and one without)
-  // Changed signature of constructors so they start with a string to
-  // avoid really ugly C++ Builder problem.
-  EComPortExt = class(EComPort)
   private
     FWinCode: Integer;
-   public
-      constructor Create(port:String; ACode: Byte; AWinCode: Integer );
-      property WinCode: Integer read FWinCode write FWinCode;
+    FCode: Integer;
+  public
+    constructor Create(ACode: Integer; AWinCode: Integer; port:String);
+    constructor CreateNoWinCode(ACode: Integer);
+    property WinCode: Integer read FWinCode write FWinCode;
+    property Code: Integer read FCode write FCode;
   end;
 
 // aditional procedures
 procedure CportInitAsync(var AsyncPtr: PCPortAsync);
-procedure CportDoneAsync(var AsyncPtr: PCPortAsync);
+procedure CportCleanupAsync(var AsyncPtr: PCPortAsync);
 procedure EnumComPorts(Ports: TStrings);
 
 // conversion functions
@@ -596,7 +589,6 @@ const
   CError_WaitFailed      = 21;
   CError_HasLink         = 22;
   CError_RegError        = 23;
-  CError_UNDEFINED       = 0;
 
 function ComErrorMessage(index:Integer):String;
 
@@ -729,6 +721,299 @@ begin
   if (EV_RX80FULL and Mask) <> 0 then
     Result := Result + [evRx80Full];
 end;
+
+
+
+
+(*****************************************
+ * other procedures/functions            *
+ *****************************************)
+
+// initialization of PCPortAsync variables used in asynchronous calls
+procedure CportInitAsync(var AsyncPtr: PCPortAsync);
+begin
+ if not Assigned(AsyncPtr) then begin
+  New(AsyncPtr);
+  with AsyncPtr^ do
+  begin
+    FillChar(Overlapped, SizeOf(TOverlapped), 0);
+    Overlapped.hEvent := CreateEvent(nil, True, True, nil);
+    Data := nil;
+    Size := 0;
+  end;
+ end;
+end;
+
+
+
+// clean-up of PCPortAsync variable
+procedure CportCleanupAsync(var AsyncPtr: PCPortAsync);
+begin
+  if Assigned(AsyncPtr) then begin
+    with AsyncPtr^ do
+    begin
+      CloseHandle(Overlapped.hEvent);
+      if Data <> nil then
+        FreeMem(Data);
+    end;
+    Dispose(AsyncPtr);
+    AsyncPtr := nil;
+  end;
+end;
+
+
+// prepare PCPortAsync variable for read/write operation
+procedure CPortPrepareAsync(AKind: TOperationKind; const Buffer:PCPortAnsiChar;
+  Count: Integer; AsyncPtr: PCPortAsync);
+begin
+ Assert(Assigned(AsyncPtr));
+
+  with AsyncPtr^ do
+  begin
+    Kind := AKind;
+    if Data <> nil then
+      FreeMem(Data);
+    GetMem(Data, Count);
+    if Assigned(Buffer) then
+        Move(Buffer^, Data^, Count);
+    Size := Count;
+  end;
+end;
+
+
+procedure EnumComPorts(Ports: TStrings);
+var
+  KeyHandle: HKEY;
+  ErrCode, Index: Integer;
+  ValueName, Data: string;
+  ValueLen, DataLen, ValueType: DWORD;
+  TmpPorts: TStringList;
+begin
+  ErrCode := RegOpenKeyEx(
+    HKEY_LOCAL_MACHINE,
+    'HARDWARE\DEVICEMAP\SERIALCOMM',
+    0,
+    KEY_READ,
+    KeyHandle);
+
+  if ErrCode <> ERROR_SUCCESS then
+    raise EComPort.Create(CError_RegError, ErrCode, 'registry read');
+
+  TmpPorts := TStringList.Create;
+  try
+    Index := 0;
+    repeat
+      ValueLen := 256;
+      DataLen := 256;
+      SetLength(ValueName, ValueLen);
+      SetLength(Data, DataLen);
+      ErrCode := RegEnumValue(
+        KeyHandle,
+        Index,
+        PChar(ValueName),
+{$IFDEF DELPHI_4_OR_HIGHER}
+        Cardinal(ValueLen),
+{$ELSE}
+        ValueLen,
+{$ENDIF}
+        nil,
+        @ValueType,
+        PByte(PChar(Data)),
+        @DataLen);
+
+      if ErrCode = ERROR_SUCCESS then
+      begin
+        SetLength(Data, DataLen);
+        TmpPorts.Add(Data);
+        Inc(Index);
+      end
+      else
+        if ErrCode <> ERROR_NO_MORE_ITEMS then
+          raise EComPort.Create(CError_RegError, ErrCode, 'registry read');
+
+    until (ErrCode <> ERROR_SUCCESS) ;
+
+    TmpPorts.Sort;
+    Ports.Assign(TmpPorts);
+  finally
+    RegCloseKey(KeyHandle);
+    TmpPorts.Free;
+  end;
+
+end;
+
+// string to baud rate
+function StrToBaudRate(Str: string): TBaudRate;
+var
+  I: TBaudRate;
+begin
+  I := Low(TBaudRate);
+  while (I <= High(TBaudRate)) do
+  begin
+    if UpperCase(Str) = UpperCase(BaudRateToStr(TBaudRate(I))) then
+      Break;
+    I := Succ(I);
+  end;
+  if I > High(TBaudRate) then
+    Result := br9600
+  else
+    Result := I;
+end;
+
+// string to stop bits
+function StrToStopBits(Str: string): TStopBits;
+var
+  I: TStopBits;
+begin
+  I := Low(TStopBits);
+  while (I <= High(TStopBits)) do
+  begin
+    if UpperCase(Str) = UpperCase(StopBitsToStr(TStopBits(I))) then
+      Break;
+    I := Succ(I);
+  end;
+  if I > High(TStopBits) then
+    Result := sbOneStopBit
+  else
+    Result := I;
+end;
+
+// string to data bits
+function StrToDataBits(Str: string): TDataBits;
+var
+  I: TDataBits;
+begin
+  I := Low(TDataBits);
+  while (I <= High(TDataBits)) do
+  begin
+    if UpperCase(Str) = UpperCase(DataBitsToStr(I)) then
+      Break;
+    I := Succ(I);
+  end;
+  if I > High(TDataBits) then
+    Result := dbEight
+  else
+    Result := I;
+end;
+
+// string to parity
+function StrToParity(Str: string): TParityBits;
+var
+  I: TParityBits;
+begin
+  I := Low(TParityBits);
+  while (I <= High(TParityBits)) do
+  begin
+    if UpperCase(Str) = UpperCase(ParityToStr(I)) then
+      Break;
+    I := Succ(I);
+  end;
+  if I > High(TParityBits) then
+    Result := prNone
+  else
+    Result := I;
+end;
+
+// string to flow control
+function StrToFlowControl(Str: string): TFlowControl;
+var
+  I: TFlowControl;
+begin
+  I := Low(TFlowControl);
+  while (I <= High(TFlowControl)) do
+  begin
+    if UpperCase(Str) = UpperCase(FlowControlToStr(I)) then
+      Break;
+    I := Succ(I);
+  end;
+  if I > High(TFlowControl) then
+    Result := fcCustom
+  else
+    Result := I;
+end;
+
+// baud rate to string
+function BaudRateToStr(BaudRate: TBaudRate): string;
+const
+  BaudRateStrings: array[TBaudRate] of string = ('Custom', '110', '300', '600',
+    '1200', '2400', '4800', '9600', '14400', '19200', '38400', '56000', '57600',
+    '115200', '128000', '256000');
+begin
+  Result := BaudRateStrings[BaudRate];
+end;
+
+
+function BaudRateToInt(BaudRate: TBaudRate): Integer;
+const
+  BaudRateInts: array[TBaudRate] of Integer = (0, 110, 300, 600,
+    1200, 2400, 4800, 9600, 14400, 19200, 38400, 56000, 57600,
+    115200, 128000, 256000 );
+begin
+  Result := BaudRateInts[BaudRate];
+end;
+
+
+// stop bits to string
+function StopBitsToStr(StopBits: TStopBits): string;
+const
+  StopBitsStrings: array[TStopBits] of string = ('1', '1.5', '2');
+begin
+  Result := StopBitsStrings[StopBits];
+end;
+
+// data bits to string
+function DataBitsToStr(DataBits: TDataBits): string;
+const
+  DataBitsStrings: array[TDataBits] of string = ('5', '6', '7', '8');
+begin
+  Result := DataBitsStrings[DataBits];
+end;
+
+// parity to string
+function ParityToStr(Parity: TParityBits): string;
+const
+  ParityBitsStrings: array[TParityBits] of string = ('None', 'Odd', 'Even',
+    'Mark', 'Space');
+begin
+  Result := ParityBitsStrings[Parity];
+end;
+
+// flow control to string
+function FlowControlToStr(FlowControl: TFlowControl): string;
+const
+  FlowControlStrings: array[TFlowControl] of string = ('Hardware',
+    'Software', 'None', 'Custom');
+begin
+  Result := FlowControlStrings[FlowControl];
+end;
+
+{initialization
+  AddDomainForResourceString('cport');
+  ComErrorMessages[1]:=_('Unable to open com port');
+  ComErrorMessages[2]:=_('WriteFile function failed');
+  ComErrorMessages[3]:=_('ReadFile function failed');
+  ComErrorMessages[4]:=_('Invalid Async parameter');
+  ComErrorMessages[5]:=_('PurgeComm function failed');
+  ComErrorMessages[6]:=_('Unable to get async status');
+  ComErrorMessages[7]:=_('SetCommState function failed');
+  ComErrorMessages[8]:=_('SetCommTimeouts failed');
+  ComErrorMessages[9]:=_('SetupComm function failed');
+  ComErrorMessages[10]:=_('ClearCommError function failed');
+  ComErrorMessages[11]:=_('GetCommModemStatus function failed');
+  ComErrorMessages[12]:=_('EscapeCommFunction function failed');
+  ComErrorMessages[13]:=_('TransmitCommChar function failed');
+  ComErrorMessages[14]:=_('Cannot set property while connected');
+  ComErrorMessages[15]:=_('EnumPorts function failed');
+  ComErrorMessages[16]:=_('Failed to store settings');
+  ComErrorMessages[17]:=_('Failed to load settings');
+  ComErrorMessages[18]:=_('Link (un)registration failed');
+  ComErrorMessages[19]:=_('Cannot change led state if ComPort is selected');
+  ComErrorMessages[20]:=_('Cannot wait for event if event thread is created');
+  ComErrorMessages[21]:=_('WaitForEvent method failed');
+  ComErrorMessages[22]:=_('A component is linked to OnRxBuf event');
+  ComErrorMessages[23]:=_('Registry error');
+}
+
 
 (*****************************************
  * TComThread class                      *
@@ -1325,12 +1610,15 @@ end;
 destructor TCustomComPort.Destroy;
 begin
   Close;
+  CportCleanupAsync(FReadAsyncPtr);
+  CportCleanupAsync(FWriteAsyncPtr);
   FBuffer.Free;
   FFlowControl.Free;
   FTimeouts.Free;
   FParity.Free;
+  FLinks.Free; // why was this AFTER destroy?
   inherited Destroy;
-  FLinks.Free;
+
 end;
 
 // create handle to serial port
@@ -1356,8 +1644,10 @@ begin
     0);
 
   if FHandle = INVALID_HANDLE_VALUE then begin
-    OutputDebugString( PChar('CreateFile '+dev));
-    raise EComPortExt.Create(FPort,CError_OpenFailed, GetLastError);
+    {$ifdef CPORT_CALLTRACE}
+    OutputDebugString( PChar('CreateHandle: CreateFile '+dev));
+    {$endif}
+    raise EComPort.Create(CError_OpenFailed, GetLastError,FPort);
   end;
 end;
 
@@ -1580,7 +1870,7 @@ begin
 
     // apply settings
     if not SetCommState(FHandle, DCB) then
-      raise EComPortExt.Create(FPort,CError_SetStateFailed, GetLastError);
+      raise EComPort.Create(CError_SetStateFailed, GetLastError,FPort);
   end;
 end;
 
@@ -1610,7 +1900,7 @@ begin
 
     // apply settings
     if not SetCommTimeouts(FHandle, Timeouts) then
-      raise EComPortExt.Create(FPort,CError_TimeoutsFailed, GetLastError);
+      raise EComPort.Create(CError_TimeoutsFailed, GetLastError, FPort);
   end;
 end;
 
@@ -1623,7 +1913,7 @@ begin
   then
     //apply settings
     if not SetupComm(FHandle, FBuffer.InputSize, FBuffer.OutputSize) then
-      raise EComPortExt.Create(FPort, CError_SetupComFailed, GetLastError);
+      raise EComPort.Create(CError_SetupComFailed, GetLastError, FPort);
 end;
 
 // initialize port
@@ -1646,7 +1936,7 @@ begin
   end;
 
   if not ClearCommError(FHandle, Errors, @ComStat) then
-    raise EComPortExt.Create(FPort, CError_ClearComFailed, GetLastError);
+    raise EComPort.Create(CError_ClearComFailed, GetLastError, FPort);
   Result := ComStat.cbInQue;
 end;
 
@@ -1657,7 +1947,7 @@ var
   ComStat: TComStat;
 begin
   if not ClearCommError(FHandle, Errors, @ComStat) then
-    raise EComPortExt.Create(FPort, CError_ClearComFailed, GetLastError);
+    raise EComPort.Create(CError_ClearComFailed, GetLastError, FPort);
   Result := ComStat.cbOutQue;
 end;
 
@@ -1668,7 +1958,7 @@ var
 begin
   if not FOverlapped then exit; { cannot read signals in non-overlapped mode }
   if not GetCommModemStatus(FHandle, Status) then
-    raise EComPortExt.Create(FPort, CError_ModemStatFailed, GetLastError);
+    raise EComPort.Create(CError_ModemStatFailed, GetLastError, FPort);
   Result := [];
 
   if (MS_CTS_ON and Status) <> 0 then
@@ -1688,7 +1978,7 @@ var
   ComStat: TComStat;
 begin
   if not ClearCommError(FHandle, Errors, @ComStat) then
-    raise EComPortExt.Create(FPort, CError_ClearComFailed, GetLastError);
+    raise EComPort.Create(CError_ClearComFailed, GetLastError,FPort);
   Result := ComStat.Flags;
 end;
 
@@ -1703,7 +1993,7 @@ begin
     Act := Windows.CLRBREAK;
 
   if not EscapeCommFunction(FHandle, Act) then
-    raise EComPortExt.Create(FPort,CError_EscapeComFailed, GetLastError);
+    raise EComPort.Create(CError_EscapeComFailed, GetLastError,FPort);
 end;
 
 // set DTR signal
@@ -1717,7 +2007,7 @@ begin
     Act := Windows.CLRDTR;
 
   if not EscapeCommFunction(FHandle, Act) then
-    raise EComPortExt.Create(FPort, CError_EscapeComFailed, GetLastError);
+    raise EComPort.Create(CError_EscapeComFailed, GetLastError,FPort);
 end;
 
 // set RTS signals
@@ -1731,7 +2021,7 @@ begin
     Act := Windows.CLRRTS;
 
   if not EscapeCommFunction(FHandle, Act) then
-    raise EComPortExt.Create(FPort, CError_EscapeComFailed, GetLastError);
+    raise EComPort.Create(CError_EscapeComFailed, GetLastError,FPort);
 end;
 
 // set XonXoff state
@@ -1745,7 +2035,7 @@ begin
     Act := Windows.SETXOFF;
 
   if not EscapeCommFunction(FHandle, Act) then
-    raise EComPortExt.Create(FPort,CError_EscapeComFailed, GetLastError);
+    raise EComPort.Create(CError_EscapeComFailed, GetLastError,FPort);
 end;
 
 // clear input and/or output buffer
@@ -1760,7 +2050,7 @@ begin
     Flag := Flag or PURGE_TXCLEAR;
 
   if not PurgeComm(FHandle, Flag) then
-    raise EComPortExt.Create(FPort,CError_PurgeFailed, GetLastError);
+    raise EComPort.Create(CError_PurgeFailed, GetLastError,FPort);
 end;
 
 // return last errors on port
@@ -1770,7 +2060,7 @@ var
   ComStat: TComStat;
 begin
   if not ClearCommError(FHandle, Errors, @ComStat) then
-    raise EComPortExt.Create(FPort,CError_ClearComFailed, GetLastError);
+    raise EComPort.Create(CError_ClearComFailed, GetLastError,FPort);
   Result := [];
 
   if (CE_FRAME and Errors) <> 0 then
@@ -1789,21 +2079,6 @@ begin
     Result := Result + [ceIO];
   if (CE_MODE and Errors) <> 0 then
     Result := Result + [ceMode];
-end;
-
-// prepare PCPortAsync variable for read/write operation
-procedure CPortPrepareAsync(AKind: TOperationKind; const Buffer:TCPortBytes;
-  Count: Integer; AsyncPtr: PCPortAsync);
-begin
-  with AsyncPtr^ do
-  begin
-    Kind := AKind;
-    if Data <> nil then
-      FreeMem(Data);
-    GetMem(Data, Count);
-    Move(Buffer^, Data^, Count);
-    Size := Count;
-  end;
 end;
 
 { Simple Synchronous Read Wrapper }
@@ -1834,21 +2109,21 @@ end;
 
 
 // perform asynchronous write operation
-function TCustomComPort.WriteAsync(const Buffer:TCPortBytes; Count: Integer; var AsyncPtr: PCPortAsync): Integer;
+function TCustomComPort.WriteAsync(const Buffer:PCPortAnsiChar; Count: Integer; var AsyncPtr: PCPortAsync): Integer;
 var
   Success : Boolean;
   Pending : Boolean;
   BytesTrans: DWORD;
 begin
   if AsyncPtr = nil then
-    raise EComPort.Create(FPort,CError_InvalidAsync);
+    raise EComPort.CreateNoWinCode(CError_InvalidAsync);
   CPortPrepareAsync(okWrite, Buffer, Count, AsyncPtr);
 
   Success := WriteFile(FHandle, Buffer^, Count, BytesTrans, @AsyncPtr^.Overlapped);
   Pending := (GetLastError = ERROR_IO_PENDING);
 
   if not (Success or Pending) then
-    raise EComPortExt.Create(FPort,CError_WriteFailed, GetLastError);
+    raise EComPort.Create(CError_WriteFailed, GetLastError,FPort);
 
   SendSignalToLink(leTx, True);
   Result := BytesTrans;
@@ -1857,10 +2132,9 @@ end;
 
 
 // perform synchronous write operation using overlapped IO API.
-function TCustomComPort._WriteAsyncWrapper(const Buffer:TCPortBytes; Count: Integer): Integer;
-var
-  AsyncPtr: PCPortAsync;
+function TCustomComPort._WriteAsyncWrapper(const mBuffer:PCPortAnsiChar; Count: Integer): Integer;
 {$ifdef CPORT_CALLTRACE}
+var
   Elapse,Tick1,Tick2:DWORD;
 {$endif}
 begin
@@ -1868,18 +2142,11 @@ begin
   Tick1 := GetTickCount;
 {$endif}
 
-  CportInitAsync(AsyncPtr);
-  try
+  CportInitAsync(FWriteAsyncPtr);
 
-    WriteAsync(Buffer, Count, AsyncPtr);
-    Result := WaitForAsync(AsyncPtr);
-  finally
-  {$ifdef CPORT_CALLTRACE}
-   OutputDebugString('TCustomComPort.DoneAsync');
-  {$endif}
+  WriteAsync(mBuffer, Count, FWriteAsyncPtr);
+  Result := WaitForAsync(FWriteAsyncPtr);
 
-    CportDoneAsync(AsyncPtr);
-  end;
 {$ifdef CPORT_CALLTRACE}
   Tick2 := GetTickCount;
   Elapse := TimerElapsed(Tick1,Tick2);
@@ -1895,7 +2162,7 @@ end;
 function TCustomComPort.WriteStrAsync(const Str: AnsiString; var AsyncPtr: PCPortAsync): Integer;
 begin
   if Length(Str) > 0 then
-    Result := WriteAsync(  TCPortBytes(Str) { @Str[1] }, Length(Str), AsyncPtr)
+    Result := WriteAsync(  PCPortAnsiChar(Str) { @Str[1] }, Length(Str), AsyncPtr)
   else
     Result := 0;
 end;
@@ -1913,42 +2180,43 @@ end;
 
 // perform synchronous write operation
 function TCustomComPort._WriteStrWrapper(const Str: AnsiString): Integer;
-var
-  AsyncPtr: PCPortAsync;
 begin
-
+{$ifdef CPORT_CALLTRACE}
   OutputDebugString('TCustomComPort.WriteStr');
+{$endif}
 
-  CportInitAsync(AsyncPtr);
-  try
-    WriteStrAsync(Str, AsyncPtr);
-    Result := WaitForAsync(AsyncPtr);
-  finally
-    CportDoneAsync(AsyncPtr);
-  end;
+  CportInitAsync(FWriteAsyncPtr);
+  WriteStrAsync(Str, FWriteAsyncPtr);
+  Result := WaitForAsync(FWriteAsyncPtr);
+
 end;
 
 
 // perform asynchronous read operation
-function TCustomComPort.ReadAsync(var Buffer:TCPortBytes; Count: Integer; var AsyncPtr: PCPortAsync): Integer;
+function TCustomComPort.ReadAsync( mBuffer:PCPortAnsiChar; Count: Integer; var AsyncPtr: PCPortAsync): Integer;
 var
   Success: Boolean;
   BytesTrans: DWORD;
   lastErr:DWORD;
 begin
   if AsyncPtr = nil then
-    raise EComPort.Create(FPort,CError_InvalidAsync);
+    raise EComPort.CreateNoWinCode(CError_InvalidAsync);
   AsyncPtr^.Kind := okRead;
+  BytesTrans := 0;
+ // Success := false;
+  //SetLength(Buffer,Count+1);
+  mBuffer[0] := AnsiChar(0);
 
-  Buffer[0] := AnsiChar($FF);
-  // Note the position of the caret (^). It compiles fine but doesn't work without "Buffer^"
-  Success := ReadFile(FHandle, Buffer^, Count, BytesTrans, @AsyncPtr^.Overlapped)
+
+  // Note the non existent position of the caret (^) after Buffer. :-)
+  //  It compiles either way.  Dunno why.
+  Success := ReadFile( FHandle, {type:PAnsiChar}mBuffer^, Count, BytesTrans, @AsyncPtr^.Overlapped)
     or (GetLastError = ERROR_IO_PENDING);
 
   if not Success then begin
       lastErr := GetLastError;
       if FReadAsyncExceptionsEnabled then begin
-          raise EComPortExt.Create(FPort, CError_ReadFailed, lastErr);
+          raise EComPort.Create(CError_ReadFailed, lastErr,FPort);
       end else begin
           Inc(FReadAsyncErrorCount);
           FReadAsyncLastError := lastErr;
@@ -1960,58 +2228,51 @@ begin
   Result := BytesTrans;
 end;
 
-// perform synchronous read operation
-function TCustomComPort.Read(Buffer:TCPortBytes; Count: Integer): Integer;
-var
-  AsyncPtr: PCPortAsync;
+// perform pseudo-synchronous read operation using async layer underneath:
+function TCustomComPort.Read(mBuffer:PCPortAnsiChar; Count: Integer): Integer;
 begin
 {$ifdef CPORT_CALLTRACE}
   OutputDebugString('TCustomComPort.Read');
 {$endif}
-
-  CportInitAsync(AsyncPtr);
-  try
-    ReadAsync(Buffer, Count, AsyncPtr);
-    Result := WaitForAsync(AsyncPtr);
-  finally
-    CportDoneAsync(AsyncPtr);
-  end;
+ CportInitAsync( FReadAsyncPtr);
+ ReadAsync( mBuffer, Count, FReadAsyncPtr);
+ Result := WaitForAsync( FReadAsyncPtr);
 end;
 
-// perform asynchronous read operation
+// DEPRECATED:
 function TCustomComPort.ReadStrAsync(var Str: AnsiString; Count: Integer; var AsyncPtr: PCPortAsync): Integer;
-var
-  cportbytes:TCPortBytes;
 begin
-  if Count > 0 then begin
-    GetMem( cportbytes,Count);
-    try
-    Result := ReadAsync( cportbytes, Count, AsyncPtr);
-    SetString( Str, cportbytes, Count);
-    finally
-      FreeMem(cportbytes);
-    end;
-  end else
+  SetLength(Str, Count);
+  if Count > 0 then
+    Result := ReadAsync( PCPortAnsiChar(Str), Count, AsyncPtr)
+  else
     Result := 0;
 end;
-
-// perform synchronous read operation
+// perform pseudo-synchronous read operation using async underlying layer.
 function TCustomComPort.ReadStr(var Str: AnsiString; Count: Integer): Integer;
-var
-  AsyncPtr: PCPortAsync;
 begin
 {$ifdef CPORT_CALLTRACE}
   OutputDebugString('TCustomComPort.ReadStr');
 {$endif}
 
-  CportInitAsync(AsyncPtr);
-  try
-    ReadStrAsync(Str, Count, AsyncPtr);
-    Result := WaitForAsync(AsyncPtr);
-    SetLength(Str, Result);
-  finally
-    CportDoneAsync(AsyncPtr);
-  end;
+  CportInitAsync(FReadAsyncPtr);
+
+  CPortPrepareAsync( okRead,nil,Count,FReadAsyncPtr);
+//  try
+    //ReadStrAsync(Str, Count, FReadAsyncPtr);
+{    Result := }
+    ReadAsync( FReadAsyncPtr.Data, Count, FReadAsyncPtr);
+
+
+
+    Result := WaitForAsync(FReadAsyncPtr);
+    //SetLength(Str, Result); { why is this happening duplicated? }
+
+    if (Result>0) then
+        SetString(Str, FReadAsyncPtr.Data, Result)
+    else
+        Str := '';
+
 end;
 
 function ErrorCode(AsyncPtr: PCPortAsync): Integer;
@@ -2030,7 +2291,7 @@ var
   Success: Boolean;
 begin
   if AsyncPtr = nil then
-    raise EComPort.Create(FPort,CError_InvalidAsync);
+    raise EComPort.CreateNoWinCode(CError_InvalidAsync);
 
   {$ifdef CPORT_CALLTRACE}
    OutputDebugString(PChar('TCustomComPort.WaitForAsync WaitForSingleObject '+      IntToHex(Integer(AsyncPtr^.Overlapped.hEvent),8)) );
@@ -2046,7 +2307,7 @@ begin
       (GetOverlappedResult(FHandle, AsyncPtr^.Overlapped, BytesTrans, False));
 
   if not Success then
-    raise EComPortExt.Create(FPort, ErrorCode(AsyncPtr), GetLastError);
+    raise EComPort.Create(ErrorCode(AsyncPtr), GetLastError, FPort);
 
   if not FInputCountNotSupported then begin
 
@@ -2060,7 +2321,7 @@ begin
         {$ifdef CPORT_CALLTRACE}
          OutputDebugString('TCustomComPort.WaitForAsync TxNotifyLink');
         {$endif}
-        TxNotifyLink( TCPortBytes( AsyncPtr^.Data), AsyncPtr^.Size);
+        TxNotifyLink( PCPortAnsiChar( AsyncPtr^.Data), AsyncPtr^.Size);
       end;
       
   end;
@@ -2076,7 +2337,7 @@ procedure TCustomComPort.AbortAllAsync;
 begin
  if FOverlapped then
   if not PurgeComm(FHandle, PURGE_TXABORT or PURGE_RXABORT) then
-    raise EComPortExt.Create(FPort,CError_PurgeFailed, GetLastError);
+    raise EComPort.Create(CError_PurgeFailed, GetLastError, FPort);
 end;
 
 // detect whether asynchronous operation is completed
@@ -2085,12 +2346,12 @@ var
   BytesTrans: DWORD;
 begin
   if AsyncPtr = nil then
-    raise EComPort.Create(FPort,CError_InvalidAsync);
+    raise EComPort.CreateNoWinCode(CError_InvalidAsync);
 
   Result := GetOverlappedResult(FHandle, AsyncPtr^.Overlapped, BytesTrans, False);
   if not Result then
     if (GetLastError <> ERROR_IO_PENDING) and (GetLastError <> ERROR_IO_INCOMPLETE) then
-      raise EComPortExt.Create(FPort,CError_AsyncCheck, GetLastError);
+      raise EComPort.Create(CError_AsyncCheck, GetLastError, FPort);
 end;
 
 // waits for event to occur on serial port
@@ -2105,7 +2366,7 @@ var
 begin
   // cannot call method if event thread is running
   if FThreadCreated then
-    raise EComPort.Create(FPort,CError_ThreadCreated);
+    raise EComPort.CreateNoWinCode(CError_ThreadCreated);
 
   FillChar(Overlapped, SizeOf(TOverlapped), 0);
   Overlapped.hEvent := CreateEvent(nil, True, False, nil);
@@ -2133,7 +2394,7 @@ begin
     end;
 
     if not Success then
-      raise EComPortExt.Create(FPort,CError_WaitFailed, GetLastError);
+      raise EComPort.Create(CError_WaitFailed, GetLastError, FPort);
 
     Events := IntToEvents(Mask);
   finally
@@ -2145,7 +2406,7 @@ end;
 procedure TCustomComPort.TransmitChar(Ch: TCPortChar);
 begin
   if not TransmitCommChar(FHandle, Ch) then
-    raise EComPortExt.Create(FPort,CError_TransmitFailed, GetLastError);
+    raise EComPort.Create(CError_TransmitFailed, GetLastError, FPort);
 end;
 
 // show port setup dialog
@@ -2513,7 +2774,7 @@ begin
       end
     end;
   except
-    raise EComPort.Create(FPort,CError_StoreFailed);
+    raise EComPort.CreateNoWinCode(CError_StoreFailed);
   end;
 end;
 
@@ -2548,7 +2809,7 @@ begin
       EndUpdate;
     end;
   except
-    raise EComPort.Create(FPort,CError_LoadFailed);
+    raise EComPort.CreateNoWinCode(CError_LoadFailed);
   end;
 end;
 
@@ -2556,7 +2817,7 @@ end;
 procedure TCustomComPort.RegisterLink(AComLink: TComLink);
 begin
   if FLinks.IndexOf(Pointer(AComLink)) > -1 then
-    raise EComPort.Create(FPort,CError_RegFailed)
+    raise EComPort.CreateNoWinCode(CError_RegFailed)
   else
     FLinks.Add(Pointer(AComLink));
   FHasLink := HasLink;
@@ -2566,7 +2827,7 @@ end;
 procedure TCustomComPort.UnRegisterLink(AComLink: TComLink);
 begin
   if FLinks.IndexOf(Pointer(AComLink)) = -1 then
-    raise EComPort.Create(FPort,CError_RegFailed)
+    raise EComPort.CreateNoWinCode(CError_RegFailed)
   else
     FLinks.Remove(Pointer(AComLink));
   FHasLink := HasLink;
@@ -2604,10 +2865,10 @@ begin
     FOnRxChar(Self, Count);
 end;
 
-procedure TCustomComPort.DoRxBuf(const Buffer:TCPortBytes; Count: Integer);
+procedure TCustomComPort.DoRxBuf(const mBuffer:PCPortAnsiChar; Count: Integer);
 begin
   if Assigned(FOnRxBuf) then
-    FOnRxBuf(Self, Buffer, Count);
+    FOnRxBuf(Self, mBuffer, Count);
 end;
 
 procedure TCustomComPort.DoBreak;
@@ -2771,12 +3032,12 @@ var
   Count: Integer;
 
   // read from input buffer
-  procedure PerformRead(var fuckster: TCPortBytes); { Pass in a Var PAnsiChar, get memory, get data }
+  procedure PerformRead(var aDebugMe: PCPortAnsiChar); { Pass in a Var PAnsiChar, get memory, get data }
   begin
-    GetMem(fuckster, Count);
-    Read(fuckster, Count);
+    GetMem(aDebugMe, Count);
+    Read(aDebugMe, Count);
     // call OnRxBuf event
-    DoRxBuf(fuckster, Count);
+    DoRxBuf(aDebugMe, Count);
   end;
 
   // check if any component is linked, to OnRxChar event
@@ -2784,11 +3045,11 @@ var
   {$WARNINGS OFF}
   var
     I: Integer;
-    FuckMeAndMyDogToo: Pointer; //TCPortBytes;{Pointer}
+    DebugMe: Pointer; //PCPortAnsiChar;{Pointer}
     ComLink: TComLink;
     ReadFromBuffer: Boolean;
   begin
-    FuckMeAndMyDogToo := nil;
+    DebugMe := nil;
     // examine links
     if (Count > 0) and (not TriggersOnRxChar) then
     begin
@@ -2806,21 +3067,21 @@ var
               // TCustomComPort must read from comport, so OnRxChar event is
               // not triggered
               ReadFromBuffer := True;
-              PerformRead( TCPortBytes(FuckMeAndMyDogToo) );
+              PerformRead( PCPortAnsiChar(DebugMe) );
             end;
             // send data to linked component
-            ComLink.OnRxBuf(Self, FuckMeAndMyDogToo, Count);
+            ComLink.OnRxBuf(Self, DebugMe, Count);
           end
         end;
         if (not ReadFromBuffer) and (not FTriggersOnRxChar) then
         begin
           ReadFromBuffer := True;
-          PerformRead( TCPortBytes(FuckMeAndMyDogToo) );
+          PerformRead( PCPortAnsiChar(DebugMe) );
         end;
       finally
         if ReadFromBuffer then
         begin
-          FreeMem(FuckMeAndMyDogToo);
+          FreeMem(DebugMe);
           // data is already out of buffer, prevent from OnRxChar event to occur
           Count := 0;
         end;
@@ -2870,7 +3131,7 @@ begin
 end;
 
 // send TxBuf notify to link
-procedure TCustomComPort.TxNotifyLink(const Buffer:TCPortBytes; Count: Integer);
+procedure TCustomComPort.TxNotifyLink(const Buffer:PCPortAnsiChar; Count: Integer);
 var
   I: Integer;
   ComLink: TComLink;
@@ -3034,7 +3295,7 @@ begin
     if FConnected and not ((csDesigning in ComponentState) or
       (csLoading in ComponentState))
     then
-      raise EComPort.Create(FPort,CError_ConnChangeProp)
+      raise EComPort.CreateNoWinCode(CError_ConnChangeProp)
     else
       FSyncMethod := Value;
   end;
@@ -3044,7 +3305,7 @@ end;
 procedure TCustomComPort.SetTriggersOnRxChar(const Value: Boolean);
 begin
   if FHasLink then
-    raise EComPort.Create(FPort,CError_HasLink);
+    raise EComPort.CreateNoWinCode(CError_HasLink);
   FTriggersOnRxChar := Value;
 end;
 
@@ -3056,7 +3317,7 @@ begin
     if FConnected and not ((csDesigning in ComponentState) or
       (csLoading in ComponentState))
     then
-      raise EComPort.Create(FPort,CError_ConnChangeProp)
+      raise EComPort.CreateNoWinCode(CError_ConnChangeProp)
     else
       FEventThreadPriority := Value;
   end;
@@ -3310,12 +3571,12 @@ begin
 end;
 
 // receive data
-procedure TComDataPacket.RxBuf(Sender: TObject; const Buffer:TCPortBytes; Count: Integer);
+procedure TComDataPacket.RxBuf(Sender: TObject; const Buffer:PCPortAnsiChar; Count: Integer);
 var
   Str: string;
 
 begin
-  SetLength(Str, Count);
+  SetLength(Str, Count); // FRACKBAR.
   Move(Buffer^, PAnsiChar(Str)^, Count);
 
   AddData(Str);
@@ -3409,13 +3670,13 @@ end;
 // read from stream
 function TComStream.Read(var Buffer; Count: Integer): Longint;
 begin
-  FComPort.Read( TCPortBytes(Buffer), Count);
+  FComPort.Read( PCPortAnsiChar(Buffer), Count);
 end;
 
 // write to stream
 function TComStream.Write(const Buffer; Count: Integer): Longint;
 begin
-  FComPort.Write(TCPortBytes(@Buffer), Count);
+  FComPort.Write(PCPortAnsiChar(@Buffer), Count);
 end;
 
 // seek always to 0
@@ -3429,299 +3690,32 @@ end;
  *****************************************)
 
 // create exception with windows error code
-constructor EComPortExt.Create(port:String; ACode: Byte; AWinCode: Integer);
+constructor EComPort.Create(ACode: Integer; AWinCode: Integer; port:String);
 begin
   FWinCode := AWinCode;
   FCode := ACode;
 //  inherited CreateFmt(ComErrorMessages[ACode] + {_(}' (win error code: %d)'{)}, [AWinCode]);
-  inherited Create( 'COM Port Error: '+ComErrorMessage(AWinCode)+' on '+port);
+  inherited Create('COM Port Error: '+ComErrorMessage(AWinCode)+' on '+port);
 end;
 
 // create exception
-constructor EComPort.Create(port:String; ACode: Byte); //overload;
+constructor EComPort.CreateNoWinCode(ACode: Integer);
 begin
+  FWinCode := -1;
   FCode := ACode;
-  inherited Create(port+' Error: '+ComErrorMessage(ACode) );
-end;
-
-constructor EComPort.Create(const Msg: string); 
-begin
-  inherited Create(Msg);
-  FCode := CError_UNDEFINED;
-end;
-
-(*****************************************
- * other procedures/functions            *
- *****************************************)
-
-// initialization of PCPortAsync variables used in asynchronous calls
-procedure CportInitAsync(var AsyncPtr: PCPortAsync);
-begin
-  New(AsyncPtr);
-  with AsyncPtr^ do
-  begin
-    FillChar(Overlapped, SizeOf(TOverlapped), 0);
-    Overlapped.hEvent := CreateEvent(nil, True, True, nil);
-    Data := nil;
-    Size := 0;
-  end;
-end;
-
-// clean-up of PCPortAsync variable
-procedure CportDoneAsync(var AsyncPtr: PCPortAsync);
-begin
-  with AsyncPtr^ do
-  begin
-    CloseHandle(Overlapped.hEvent);
-    if Data <> nil then
-      FreeMem(Data);
-  end;
-  Dispose(AsyncPtr);
-  AsyncPtr := nil;
-end;
-
-procedure EnumComPorts(Ports: TStrings);
-var
-  KeyHandle: HKEY;
-  ErrCode, Index: Integer;
-  ValueName, Data: string;
-  ValueLen, DataLen, ValueType: DWORD;
-  TmpPorts: TStringList;
-begin
-  ErrCode := RegOpenKeyEx(
-    HKEY_LOCAL_MACHINE,
-    'HARDWARE\DEVICEMAP\SERIALCOMM',
-    0,
-    KEY_READ,
-    KeyHandle);
-
-  if ErrCode <> ERROR_SUCCESS then
-    raise EComPortExt.Create('EnumComPorts',CError_RegError, ErrCode);
-
-  TmpPorts := TStringList.Create;
-  try
-    Index := 0;
-    repeat
-      ValueLen := 256;
-      DataLen := 256;
-      SetLength(ValueName, ValueLen);
-      SetLength(Data, DataLen);
-      ErrCode := RegEnumValue(
-        KeyHandle,
-        Index,
-        PChar(ValueName),
-{$IFDEF DELPHI_4_OR_HIGHER}
-        Cardinal(ValueLen),
-{$ELSE}
-        ValueLen,
-{$ENDIF}
-        nil,
-        @ValueType,
-        PByte(PChar(Data)),
-        @DataLen);
-
-      if ErrCode = ERROR_SUCCESS then
-      begin
-        SetLength(Data, DataLen);
-        TmpPorts.Add(Data);
-        Inc(Index);
-      end
-      else
-        if ErrCode <> ERROR_NO_MORE_ITEMS then
-          raise EComPortExt.Create('EnumComPorts',CError_RegError, ErrCode );
-
-    until (ErrCode <> ERROR_SUCCESS) ;
-
-    TmpPorts.Sort;
-    Ports.Assign(TmpPorts);
-  finally
-    RegCloseKey(KeyHandle);
-    TmpPorts.Free;
-  end;
-
-end;
-
-// string to baud rate
-function StrToBaudRate(Str: string): TBaudRate;
-var
-  I: TBaudRate;
-begin
-  I := Low(TBaudRate);
-  while (I <= High(TBaudRate)) do
-  begin
-    if UpperCase(Str) = UpperCase(BaudRateToStr(TBaudRate(I))) then
-      Break;
-    I := Succ(I);
-  end;
-  if I > High(TBaudRate) then
-    Result := br9600
-  else
-    Result := I;
-end;
-
-// string to stop bits
-function StrToStopBits(Str: string): TStopBits;
-var
-  I: TStopBits;
-begin
-  I := Low(TStopBits);
-  while (I <= High(TStopBits)) do
-  begin
-    if UpperCase(Str) = UpperCase(StopBitsToStr(TStopBits(I))) then
-      Break;
-    I := Succ(I);
-  end;
-  if I > High(TStopBits) then
-    Result := sbOneStopBit
-  else
-    Result := I;
-end;
-
-// string to data bits
-function StrToDataBits(Str: string): TDataBits;
-var
-  I: TDataBits;
-begin
-  I := Low(TDataBits);
-  while (I <= High(TDataBits)) do
-  begin
-    if UpperCase(Str) = UpperCase(DataBitsToStr(I)) then
-      Break;
-    I := Succ(I);
-  end;
-  if I > High(TDataBits) then
-    Result := dbEight
-  else
-    Result := I;
-end;
-
-// string to parity
-function StrToParity(Str: string): TParityBits;
-var
-  I: TParityBits;
-begin
-  I := Low(TParityBits);
-  while (I <= High(TParityBits)) do
-  begin
-    if UpperCase(Str) = UpperCase(ParityToStr(I)) then
-      Break;
-    I := Succ(I);
-  end;
-  if I > High(TParityBits) then
-    Result := prNone
-  else
-    Result := I;
-end;
-
-// string to flow control
-function StrToFlowControl(Str: string): TFlowControl;
-var
-  I: TFlowControl;
-begin
-  I := Low(TFlowControl);
-  while (I <= High(TFlowControl)) do
-  begin
-    if UpperCase(Str) = UpperCase(FlowControlToStr(I)) then
-      Break;
-    I := Succ(I);
-  end;
-  if I > High(TFlowControl) then
-    Result := fcCustom
-  else
-    Result := I;
-end;
-
-// baud rate to string
-function BaudRateToStr(BaudRate: TBaudRate): string;
-const
-  BaudRateStrings: array[TBaudRate] of string = ('Custom', '110', '300', '600',
-    '1200', '2400', '4800', '9600', '14400', '19200', '38400', '56000', '57600',
-    '115200', '128000', '256000');
-begin
-  Result := BaudRateStrings[BaudRate];
+  inherited Create('COM Port Error: '+ComErrorMessage(ACode) );
 end;
 
 
-function BaudRateToInt(BaudRate: TBaudRate): Integer;
-const
-  BaudRateInts: array[TBaudRate] of Integer = (0, 110, 300, 600,
-    1200, 2400, 4800, 9600, 14400, 19200, 38400, 56000, 57600,
-    115200, 128000, 256000 );
-begin
-  Result := BaudRateInts[BaudRate];
-end;
 
-
-// stop bits to string
-function StopBitsToStr(StopBits: TStopBits): string;
-const
-  StopBitsStrings: array[TStopBits] of string = ('1', '1.5', '2');
-begin
-  Result := StopBitsStrings[StopBits];
-end;
-
-// data bits to string
-function DataBitsToStr(DataBits: TDataBits): string;
-const
-  DataBitsStrings: array[TDataBits] of string = ('5', '6', '7', '8');
-begin
-  Result := DataBitsStrings[DataBits];
-end;
-
-// parity to string
-function ParityToStr(Parity: TParityBits): string;
-const
-  ParityBitsStrings: array[TParityBits] of string = ('None', 'Odd', 'Even',
-    'Mark', 'Space');
-begin
-  Result := ParityBitsStrings[Parity];
-end;
-
-// flow control to string
-function FlowControlToStr(FlowControl: TFlowControl): string;
-const
-  FlowControlStrings: array[TFlowControl] of string = ('Hardware',
-    'Software', 'None', 'Custom');
-begin
-  Result := FlowControlStrings[FlowControl];
-end;
-
-{initialization
-  AddDomainForResourceString('cport');
-  ComErrorMessages[1]:=_('Unable to open com port');
-  ComErrorMessages[2]:=_('WriteFile function failed');
-  ComErrorMessages[3]:=_('ReadFile function failed');
-  ComErrorMessages[4]:=_('Invalid Async parameter');
-  ComErrorMessages[5]:=_('PurgeComm function failed');
-  ComErrorMessages[6]:=_('Unable to get async status');
-  ComErrorMessages[7]:=_('SetCommState function failed');
-  ComErrorMessages[8]:=_('SetCommTimeouts failed');
-  ComErrorMessages[9]:=_('SetupComm function failed');
-  ComErrorMessages[10]:=_('ClearCommError function failed');
-  ComErrorMessages[11]:=_('GetCommModemStatus function failed');
-  ComErrorMessages[12]:=_('EscapeCommFunction function failed');
-  ComErrorMessages[13]:=_('TransmitCommChar function failed');
-  ComErrorMessages[14]:=_('Cannot set property while connected');
-  ComErrorMessages[15]:=_('EnumPorts function failed');
-  ComErrorMessages[16]:=_('Failed to store settings');
-  ComErrorMessages[17]:=_('Failed to load settings');
-  ComErrorMessages[18]:=_('Link (un)registration failed');
-  ComErrorMessages[19]:=_('Cannot change led state if ComPort is selected');
-  ComErrorMessages[20]:=_('Cannot wait for event if event thread is created');
-  ComErrorMessages[21]:=_('WaitForEvent method failed');
-  ComErrorMessages[22]:=_('A component is linked to OnRxBuf event');
-  ComErrorMessages[23]:=_('Registry error');
-}
-
-
-function TCustomComPort.Write(const Buffer: TCPortBytes;
+function TCustomComPort.Write(const mBuffer: PCPortAnsiChar;
   Count: Integer): Integer;
 begin
  if FOverlapped then begin
-    result := _WriteAsyncWrapper(Buffer,Count); // Do a synchronous write using overlapped APIs.
+    result := _WriteAsyncWrapper(mBuffer,Count); // Do a synchronous write using overlapped APIs.
  end else begin
    result := 0;
-   if _SyncWrite(Buffer,Count) then
+   if _SyncWrite(mBuffer,Count) then
       result := Count;
  end;
 end;
@@ -3731,7 +3725,5 @@ begin
   if FConnected then exit;
   FOverlapped := Value;
 end;
-
-
 
 end.

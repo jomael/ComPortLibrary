@@ -215,21 +215,13 @@ type
   end;
 
   // property types
-
+  TLedBitmap = Graphics.TBitmap;
   TLedKind = (lkRedLight, lkGreenLight, lkBlueLight, lkYellowLight,
     lkPurpleLight, lkBulb, lkCustom);
   TComLedSignal = (lsConn, lsCTS, lsDSR, lsRLSD, lsRing, lsRx, lsTx);
   TLedState = (lsOff, lsOn);
-
+  TComLedGlyphs = array[TLedState] of TLedBitmap;
   TLedStateEvent = procedure(Sender: TObject; AState: TLedState) of object;
-
-  //TLedBitmap = Graphics.TBitmap; { type of alias doesn't work when wrapping for C++Builder.}
-
-  TLedBitmap = class (Graphics.TBitmap)
-      // WE HAVE TO subclass it, even though we don't do anything extra with it.
-  end;
-
-  TComLedGlyphs = array[TLedState] of TLedBitmap;  
 
   // led control that shows the state of serial signals
   TComLed = class(TGraphicControl)
@@ -439,7 +431,7 @@ type
     function PutEscapeCode(ACode: TEscapeCode; AParams: TStrings): Boolean;
     procedure RestoreAttr;
     procedure RestoreCaretPos;
-    procedure RxBuf(Sender: TObject; const Buffer:TCPortBytes; Count: Integer);
+    procedure RxBuf(Sender: TObject; const Buffer:PCPortAnsiChar; Count: Integer);
     procedure SaveAttr;
     procedure SaveCaretPos;
     procedure SendChar(Ch: Char);
@@ -481,7 +473,7 @@ type
     destructor Destroy; override;
     procedure ClearScreen;
     procedure MoveCaret(AColumn, ARow: Integer);
-    procedure Write(const Buffer:TCPortBytes; Size: Integer);
+    procedure Write(const Buffer:PCPortAnsiChar; Size: Integer);
     procedure WriteStr(const Str: string);
     procedure WriteEscCode(ACode: TEscapeCode; AParams: TStrings);
     procedure LoadFromStream(Stream: TStream);
@@ -1231,7 +1223,7 @@ end;
 procedure TComLed.SetState(const Value: TLedState);
 begin
   if FComPort <> nil then
-    raise EComPort.Create('ComLed ',CError_LedStateFailed);
+    raise EComPort.CreateNoWinCode(CError_LedStateFailed);
   SetStateInternal(Value);
 end;
 
@@ -1602,7 +1594,7 @@ begin
 end;
 
 // write data to screen (ancient const-Buffer-untyped)
-procedure TCustomComTerminal.Write(const Buffer:TCPortBytes; Size: Integer);
+procedure TCustomComTerminal.Write(const Buffer:PCPortAnsiChar; Size: Integer);
 var
  Str:AnsiString;
 begin
@@ -2551,7 +2543,7 @@ begin
   FSaveAttr := FTermAttr;
 end;
 
-procedure TCustomComTerminal.RxBuf(Sender: TObject; const Buffer:TCPortBytes;
+procedure TCustomComTerminal.RxBuf(Sender: TObject; const Buffer:PCPortAnsiChar;
   Count: Integer);
 var
   Str: AnsiString;   { Do not change to String. Critical to functionality in Delphi2009! }

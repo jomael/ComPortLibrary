@@ -20,7 +20,7 @@ type
 
 // this is the type Warren changed most of the untyped-parameters used
 // in CPort.pas and CPortCtl.pas to:
-  TCPortBytes = PAnsiChar;
+  PCPortAnsiChar = PAnsiChar;
 
   // various types formerly in CPort.pas:
   TCPortChar = AnsiChar;
@@ -49,7 +49,7 @@ type
   TComLinkEvent = (leConn, leCTS, leDSR, leRLSD, leRing, leRx, leTx,
     leTxEmpty, leRxFlag);
   TRxCharEvent = procedure(Sender: TObject; Count: Integer) of object;
-  TRxBufEvent = procedure(Sender: TObject; const Buffer:TCPortBytes;
+  TRxBufEvent = procedure(Sender: TObject; const Buffer:PCPortAnsiChar;
     Count: Integer) of object;
   TComErrorEvent = procedure(Sender: TObject; Errors: TComErrors) of object;
   TComSignalEvent = procedure(Sender: TObject; OnOff: Boolean) of object;
@@ -61,7 +61,7 @@ type
   TCPortAsync = record
     Overlapped: TOverlapped;
     Kind: TOperationKind;
-    Data: TCPortBytes;
+    Data: PCPortAnsiChar;
     Size: Integer;
   end;
   PCPortAsync = ^TCPortAsync;
