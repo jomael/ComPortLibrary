@@ -1,0 +1,60 @@
+﻿	<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+		<PropertyGroup>
+			<ProjectGuid>{55DD1D4C-E7CA-4B0F-90B0-8921C84E17B4}</ProjectGuid>
+		</PropertyGroup>
+		<ItemGroup>
+			<Projects Include="source\CPortLib14.dproj">
+				<Dependencies/>
+			</Projects>
+			<Projects Include="source\DsgnCPort14.dproj">
+				<Dependencies/>
+			</Projects>
+			<Projects Include="tests\CPortUTest_Delphi2010.dproj">
+				<Dependencies/>
+			</Projects>
+		</ItemGroup>
+		<ProjectExtensions>
+			<Borland.Personality>Default.Personality.12</Borland.Personality>
+			<Borland.ProjectType/>
+			<BorlandProject>
+				<Default.Personality/>
+			</BorlandProject>
+		</ProjectExtensions>
+		<Target Name="CPortLib14">
+			<MSBuild Projects="source\CPortLib14.dproj"/>
+		</Target>
+		<Target Name="CPortLib14:Clean">
+			<MSBuild Targets="Clean" Projects="source\CPortLib14.dproj"/>
+		</Target>
+		<Target Name="CPortLib14:Make">
+			<MSBuild Targets="Make" Projects="source\CPortLib14.dproj"/>
+		</Target>
+		<Target Name="DsgnCPort14">
+			<MSBuild Projects="source\DsgnCPort14.dproj"/>
+		</Target>
+		<Target Name="DsgnCPort14:Clean">
+			<MSBuild Targets="Clean" Projects="source\DsgnCPort14.dproj"/>
+		</Target>
+		<Target Name="DsgnCPort14:Make">
+			<MSBuild Targets="Make" Projects="source\DsgnCPort14.dproj"/>
+		</Target>
+		<Target Name="CPortUTest_Delphi2010">
+			<MSBuild Projects="tests\CPortUTest_Delphi2010.dproj"/>
+		</Target>
+		<Target Name="CPortUTest_Delphi2010:Clean">
+			<MSBuild Targets="Clean" Projects="tests\CPortUTest_Delphi2010.dproj"/>
+		</Target>
+		<Target Name="CPortUTest_Delphi2010:Make">
+			<MSBuild Targets="Make" Projects="tests\CPortUTest_Delphi2010.dproj"/>
+		</Target>
+		<Target Name="Build">
+			<CallTarget Targets="CPortLib14;DsgnCPort14;CPortUTest_Delphi2010"/>
+		</Target>
+		<Target Name="Clean">
+			<CallTarget Targets="CPortLib14:Clean;DsgnCPort14:Clean;CPortUTest_Delphi2010:Clean"/>
+		</Target>
+		<Target Name="Make">
+			<CallTarget Targets="CPortLib14:Make;DsgnCPort14:Make;CPortUTest_Delphi2010:Make"/>
+		</Target>
+		<Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+	</Project>
