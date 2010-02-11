@@ -1,7 +1,7 @@
 (******************************************************
- * ComPort Library ver. 3.0                           *
- *   for Delphi 3, 4, 5, 6, 7 and                     *
- *   C++ Builder 3, 4, 5, 6                           *
+ * ComPort Library ver. 4.0                           *
+ *   for Delphi 7 ..... 2010                          *
+ *   C++ Builder 6 .... 2010                          *
  * written by Dejan Crnila, 1998 - 2002               *
  * maintained by Lars B. Dybdahl, 2003                *
  * Homepage: http://comport.sf.net/                   *
@@ -23,6 +23,9 @@ uses
   DsgnIntf,
 {$ENDIF}
   Classes, Menus;
+
+const
+  CPortLibPaletteTitle ='CPortLib4';
 
 type
   // default ComPort Library component editor
@@ -344,9 +347,10 @@ end;
 
 {$ENDIF}
 
+
 procedure Register;
 begin
-  RegisterComponents('CPortLib', [TComPort, TComDataPacket,
+  RegisterComponents( CPortLibPaletteTitle, [TComPort, TComDataPacket,
     TComComboBox, TComRadioGroup, TComLed, TComTerminal]);
   RegisterComponentEditor(TComPort, TComPortEditor);
   RegisterComponentEditor(TComTerminal, TComTerminalEditor);

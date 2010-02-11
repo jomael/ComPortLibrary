@@ -22,7 +22,7 @@ package CPortLib14;
 {$WRITEABLECONST ON}
 {$MINENUMSIZE 1}
 {$IMAGEBASE $400000}
-{$DESCRIPTION 'ComPort Library - Runtime Package - Dejan Crnila - Mod by Warren Postma (Delphi 2009)'}
+{$DESCRIPTION 'ComPort Library - Runtime Package - Dejan Crnila - Mod by Warren Postma (Delphi 2010)'}
 {$RUNONLY}
 {$IMPLICITBUILD OFF}
 {$DEFINE CPORT_OVERLAPPED_API}

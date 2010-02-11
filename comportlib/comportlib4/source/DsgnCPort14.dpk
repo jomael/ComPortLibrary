@@ -22,14 +22,14 @@ package DsgnCPort14;
 {$WRITEABLECONST ON}
 {$MINENUMSIZE 1}
 {$IMAGEBASE $400000}
-{$DESCRIPTION 'ComPort Library - Designtime Package - Dejan Crnila - Mod by Warren Postma (Delphi 2009)'}
+{$DESCRIPTION 'ComPort Library - Designtime Package - Dejan Crnila - Mod by Warren Postma (Delphi 2010)'}
 {$DESIGNONLY}
 {$IMPLICITBUILD OFF}
 
 requires
   vcl,
-  CPortLib12,
-  designide;
+  designide,
+  CPortLib14;
 
 contains
   CPortReg in 'CPortReg.pas',

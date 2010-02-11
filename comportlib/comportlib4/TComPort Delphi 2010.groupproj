@@ -9,6 +9,9 @@
 			<Projects Include="source\DsgnCPort14.dproj">
 				<Dependencies/>
 			</Projects>
+			<Projects Include="Examples\delphi\PacketSample.dproj">
+				<Dependencies/>
+			</Projects>
 			<Projects Include="tests\CPortUTest_Delphi2010.dproj">
 				<Dependencies/>
 			</Projects>
@@ -38,6 +41,15 @@
 		<Target Name="DsgnCPort14:Make">
 			<MSBuild Targets="Make" Projects="source\DsgnCPort14.dproj"/>
 		</Target>
+		<Target Name="PacketSample">
+			<MSBuild Projects="Examples\delphi\PacketSample.dproj"/>
+		</Target>
+		<Target Name="PacketSample:Clean">
+			<MSBuild Targets="Clean" Projects="Examples\delphi\PacketSample.dproj"/>
+		</Target>
+		<Target Name="PacketSample:Make">
+			<MSBuild Targets="Make" Projects="Examples\delphi\PacketSample.dproj"/>
+		</Target>
 		<Target Name="CPortUTest_Delphi2010">
 			<MSBuild Projects="tests\CPortUTest_Delphi2010.dproj"/>
 		</Target>
@@ -48,13 +60,13 @@
 			<MSBuild Targets="Make" Projects="tests\CPortUTest_Delphi2010.dproj"/>
 		</Target>
 		<Target Name="Build">
-			<CallTarget Targets="CPortLib14;DsgnCPort14;CPortUTest_Delphi2010"/>
+			<CallTarget Targets="CPortLib14;DsgnCPort14;PacketSample;CPortUTest_Delphi2010"/>
 		</Target>
 		<Target Name="Clean">
-			<CallTarget Targets="CPortLib14:Clean;DsgnCPort14:Clean;CPortUTest_Delphi2010:Clean"/>
+			<CallTarget Targets="CPortLib14:Clean;DsgnCPort14:Clean;PacketSample:Clean;CPortUTest_Delphi2010:Clean"/>
 		</Target>
 		<Target Name="Make">
-			<CallTarget Targets="CPortLib14:Make;DsgnCPort14:Make;CPortUTest_Delphi2010:Make"/>
+			<CallTarget Targets="CPortLib14:Make;DsgnCPort14:Make;PacketSample:Make;CPortUTest_Delphi2010:Make"/>
 		</Target>
 		<Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
 	</Project>

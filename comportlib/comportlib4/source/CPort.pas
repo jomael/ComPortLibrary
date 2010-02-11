@@ -476,7 +476,7 @@ type
     FIncludeStrings: Boolean;
     FCaseInsensitive: Boolean;
     FInPacket: Boolean;
-    FBuffer: string;
+    FBuffer: AnsiString;
     FOnPacket: TComStrEvent;
     FOnDiscard: TComStrEvent;
     FOnCustomStart: TCustPacketEvent;
@@ -487,7 +487,7 @@ type
     procedure SetStartString(const Value: string);
     procedure SetStopString(const Value: string);
     procedure RxBuf(Sender: TObject; const Buffer:PCPortAnsiChar; Count: Integer);
-    procedure CheckIncludeStrings(var Str: string);
+    procedure CheckIncludeStrings(var Str: AnsiString);
     function Upper(const Str: string): string;
     procedure EmptyBuffer;
     function ValidStop: Boolean;
@@ -498,11 +498,11 @@ type
     procedure DoCustomStart(const Str: string; var Pos: Integer); dynamic;
     procedure DoCustomStop(const Str: string; var Pos: Integer); dynamic;
     procedure HandleBuffer; virtual;
-    property Buffer: string read FBuffer write FBuffer;
+    property Buffer: AnsiString read FBuffer write FBuffer;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    procedure AddData(const Str: string);
+    procedure AddData(const Str: AnsiString);
   published
     property ComPort: TCustomComPort read FComPort write SetComPort;
     property CaseInsensitive: Boolean
@@ -1022,15 +1022,24 @@ end;
 // create thread
 constructor TComThread.Create(AComPort: TCustomComPort);
 begin
-  inherited Create(True);
+// On delphi 2009 and up, we just create it without suspending, since it doesn't actually
+// run until after Create is finished.
+  inherited Create({$ifdef UNICODE}false{$else}True{$endif});
   FStopEvent := CreateEvent(nil, True, False, nil);
   FComPort := AComPort;
   // set thread priority
   Priority := FComPort.EventThreadPriority;
   // select which events are monitored
   SetCommMask(FComPort.Handle, EventsToInt(FComPort.Events));
-  // execute thread
+
+  // we can use Resume to start the thread now in non-unicode versions, but
+  // to avoid compiler warnings we are avoiding this method in the unicode
+  // delphi versions. Thus the constructor above is called Create(false) to
+  // avoid the need for this resume.  TTHread is an wart-covered piece of crap, but
+  // it's all we have.
+{$ifndef UNICODE}
   Resume;
+{$endif}
 end;
 
 // destroy thread
@@ -3379,7 +3388,7 @@ begin
 end;
 
 // add custom data to packet buffer
-procedure TComDataPacket.AddData(const Str: string);
+procedure TComDataPacket.AddData(const Str: AnsiString);
 begin
   if ValidStop then
   begin
@@ -3429,7 +3438,7 @@ begin
 end;
 
 // discard start and stop strings
-procedure TComDataPacket.CheckIncludeStrings(var Str: string);
+procedure TComDataPacket.CheckIncludeStrings(var Str: AnsiString);
 var
   LenStart, LenStop: Integer;
 begin
@@ -3459,7 +3468,7 @@ procedure TComDataPacket.HandleBuffer;
 
   procedure DiscardPacketToPos(Pos: Integer);
   var
-    Str: string;
+    Str: AnsiString;
   begin
     FInPacket := True;
     if Pos > 1 then
@@ -3472,7 +3481,7 @@ procedure TComDataPacket.HandleBuffer;
 
   procedure FormPacket(CutSize: Integer);
   var
-    Str: string;
+    Str: AnsiString;
   begin
     Str := Copy(Buffer, 1, CutSize);
     Buffer := Copy(Buffer, CutSize + 1, Length(Buffer) - CutSize);
@@ -3573,7 +3582,7 @@ end;
 // receive data
 procedure TComDataPacket.RxBuf(Sender: TObject; const Buffer:PCPortAnsiChar; Count: Integer);
 var
-  Str: string;
+  Str: AnsiString;
 
 begin
   SetLength(Str, Count); // FRACKBAR.
