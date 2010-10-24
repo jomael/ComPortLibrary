@@ -476,7 +476,7 @@ type
     FIncludeStrings: Boolean;
     FCaseInsensitive: Boolean;
     FInPacket: Boolean;
-    FBuffer: AnsiString;
+    FBuffer: string;
     FOnPacket: TComStrEvent;
     FOnDiscard: TComStrEvent;
     FOnCustomStart: TCustPacketEvent;
@@ -487,7 +487,7 @@ type
     procedure SetStartString(const Value: string);
     procedure SetStopString(const Value: string);
     procedure RxBuf(Sender: TObject; const Buffer:PCPortAnsiChar; Count: Integer);
-    procedure CheckIncludeStrings(var Str: AnsiString);
+    procedure CheckIncludeStrings(var Str: string);
     function Upper(const Str: string): string;
     procedure EmptyBuffer;
     function ValidStop: Boolean;
@@ -498,11 +498,11 @@ type
     procedure DoCustomStart(const Str: string; var Pos: Integer); dynamic;
     procedure DoCustomStop(const Str: string; var Pos: Integer); dynamic;
     procedure HandleBuffer; virtual;
-    property Buffer: AnsiString read FBuffer write FBuffer;
+    property Buffer: string read FBuffer write FBuffer;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    procedure AddData(const Str: AnsiString);
+    procedure AddData(const Str: string);
   published
     property ComPort: TCustomComPort read FComPort write SetComPort;
     property CaseInsensitive: Boolean
@@ -595,7 +595,7 @@ function ComErrorMessage(index:Integer):String;
 implementation
 
 uses
-  CPortSetup, Controls, Forms, WinSpool;
+  TypInfo, CPortSetup, Controls, Forms, WinSpool;
 
   //gnugettext;
 
@@ -934,22 +934,14 @@ end;
 
 // baud rate to string
 function BaudRateToStr(BaudRate: TBaudRate): string;
-const
-  BaudRateStrings: array[TBaudRate] of string = ('Custom', '110', '300', '600',
-    '1200', '2400', '4800', '9600', '14400', '19200', '38400', '56000', '57600',
-    '115200', '128000', '256000');
 begin
-  Result := BaudRateStrings[BaudRate];
+  Result :=   Copy(GetEnumName(TypeInfo(TBaudrate),  ord(BaudRate)),3,20);
 end;
 
 
 function BaudRateToInt(BaudRate: TBaudRate): Integer;
-const
-  BaudRateInts: array[TBaudRate] of Integer = (0, 110, 300, 600,
-    1200, 2400, 4800, 9600, 14400, 19200, 38400, 56000, 57600,
-    115200, 128000, 256000 );
 begin
-  Result := BaudRateInts[BaudRate];
+  StrToIntDef(Copy(GetEnumName(TypeInfo(TBaudrate),  ord(BaudRate)),3,20),0);
 end;
 
 
@@ -963,28 +955,20 @@ end;
 
 // data bits to string
 function DataBitsToStr(DataBits: TDataBits): string;
-const
-  DataBitsStrings: array[TDataBits] of string = ('5', '6', '7', '8');
 begin
-  Result := DataBitsStrings[DataBits];
+  Result := IntToStr(ord(Databits)+4);//DataBitsStrings[DataBits];
 end;
 
 // parity to string
 function ParityToStr(Parity: TParityBits): string;
-const
-  ParityBitsStrings: array[TParityBits] of string = ('None', 'Odd', 'Even',
-    'Mark', 'Space');
 begin
-  Result := ParityBitsStrings[Parity];
+  Result := Copy(GetEnumName(TypeInfo(TParityBits),  ord(Parity)),3,20);
 end;
 
 // flow control to string
 function FlowControlToStr(FlowControl: TFlowControl): string;
-const
-  FlowControlStrings: array[TFlowControl] of string = ('Hardware',
-    'Software', 'None', 'Custom');
 begin
-  Result := FlowControlStrings[FlowControl];
+  Result := Copy(GetEnumName(TypeInfo(TFlowControl),  ord(FlowControl)),3,20);
 end;
 
 {initialization
@@ -1022,24 +1006,15 @@ end;
 // create thread
 constructor TComThread.Create(AComPort: TCustomComPort);
 begin
-// On delphi 2009 and up, we just create it without suspending, since it doesn't actually
-// run until after Create is finished.
-  inherited Create({$ifdef UNICODE}false{$else}True{$endif});
+  inherited Create(True);
   FStopEvent := CreateEvent(nil, True, False, nil);
   FComPort := AComPort;
   // set thread priority
   Priority := FComPort.EventThreadPriority;
   // select which events are monitored
   SetCommMask(FComPort.Handle, EventsToInt(FComPort.Events));
-
-  // we can use Resume to start the thread now in non-unicode versions, but
-  // to avoid compiler warnings we are avoiding this method in the unicode
-  // delphi versions. Thus the constructor above is called Create(false) to
-  // avoid the need for this resume.  TTHread is an wart-covered piece of crap, but
-  // it's all we have.
-{$ifndef UNICODE}
+  // execute thread
   Resume;
-{$endif}
 end;
 
 // destroy thread
@@ -3388,7 +3363,7 @@ begin
 end;
 
 // add custom data to packet buffer
-procedure TComDataPacket.AddData(const Str: AnsiString);
+procedure TComDataPacket.AddData(const Str: string);
 begin
   if ValidStop then
   begin
@@ -3438,7 +3413,7 @@ begin
 end;
 
 // discard start and stop strings
-procedure TComDataPacket.CheckIncludeStrings(var Str: AnsiString);
+procedure TComDataPacket.CheckIncludeStrings(var Str: string);
 var
   LenStart, LenStop: Integer;
 begin
@@ -3468,7 +3443,7 @@ procedure TComDataPacket.HandleBuffer;
 
   procedure DiscardPacketToPos(Pos: Integer);
   var
-    Str: AnsiString;
+    Str: string;
   begin
     FInPacket := True;
     if Pos > 1 then
@@ -3481,7 +3456,7 @@ procedure TComDataPacket.HandleBuffer;
 
   procedure FormPacket(CutSize: Integer);
   var
-    Str: AnsiString;
+    Str: string;
   begin
     Str := Copy(Buffer, 1, CutSize);
     Buffer := Copy(Buffer, CutSize + 1, Length(Buffer) - CutSize);
@@ -3582,7 +3557,7 @@ end;
 // receive data
 procedure TComDataPacket.RxBuf(Sender: TObject; const Buffer:PCPortAnsiChar; Count: Integer);
 var
-  Str: AnsiString;
+  Str: string;
 
 begin
   SetLength(Str, Count); // FRACKBAR.
