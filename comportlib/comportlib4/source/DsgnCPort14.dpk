@@ -28,7 +28,7 @@ package DsgnCPort14;
 
 requires
   vcl,
-  designide,
+  designide , 
   CPortLib14;
 
 contains
