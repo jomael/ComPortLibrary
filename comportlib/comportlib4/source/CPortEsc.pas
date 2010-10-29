@@ -1,6 +1,6 @@
 (******************************************************
  * ComPort Library ver. 4.0                           *
- *   for Delphi  7, 2007, 2009 and                    *
+ *   for Delphi 3, 4, 5, 6, 7, 2007-2010,XE  and      *
  *   C++ Builder 3, 4, 5, 6                           *
  * written by Dejan Crnila, 1998 - 2002               *
  * maintained by Lars B. Dybdahl, 2003                *
@@ -8,6 +8,10 @@
  *                                                    *
  * Fixed up for Delphi 2009 by W.Postma.  Oct 2008    *
  * More like completely rewritten, actually.          *
+ *                                                    *
+ * Brian Gochnauer Oct 2010                           *
+ *     Removed ansi references for backward compat    *
+ *     Made unicode ready                             *
  *****************************************************)
 
  { Terminal Emulation Escape Code Helper Objects }
@@ -19,7 +23,7 @@ unit CPortEsc;
 interface
 
 uses
-  Classes;
+ CPortTypes,Classes;
 
 const
    cportLetters = ['A'..'Z', 'a'..'z'];
@@ -43,15 +47,15 @@ type
   private
     FCharacter: Char;  { spelling mistake fixed. }
     FCode: TEscapeCode;
-    FData: string;
+    FData: String;
     FParams: TStrings;
   public
     constructor Create;
     destructor Destroy; override;
     function ProcessChar(Ch: Char): TEscapeResult; virtual; abstract;
-    function EscCodeToStr(Code: TEscapeCode; AParams: TStrings): AnsiString; virtual; abstract;
+    function EscCodeToStr(Code: TEscapeCode; AParams: TStrings): String; virtual; abstract;
     function GetParam(Num: Integer; AParams: TStrings): Integer;
-    property Data: string read FData;
+    property Data: String read FData;
     property Code: TEscapeCode read FCode;
     property Character: Char read FCharacter; { spelling mistake fixed. }
     property Params: TStrings read FParams;
@@ -61,10 +65,10 @@ type
   TEscapeCodesVT52 = class(TEscapeCodes)
   private
     FInSequence: Boolean;
-    function DetectCode(Str: string): TEscapeCode;
+    function DetectCode(Str: String): TEscapeCode;
   public
     function ProcessChar(Ch: Char): TEscapeResult; override;
-    function EscCodeToStr(Code: TEscapeCode; AParams: TStrings): AnsiString; override;
+    function EscCodeToStr(Code: TEscapeCode; AParams: TStrings): String; override;
   end;
 
   // ANSI/VT100 escape codes
@@ -72,11 +76,11 @@ type
   private
     FInSequence: Boolean;
     FInExtSequence: Boolean;
-    function DetectCode(Str: string): TEscapeCode;
-    function DetectExtCode(Str: string): TEscapeCode;
+    function DetectCode(Str: String): TEscapeCode;
+    function DetectExtCode(Str: String): TEscapeCode;
   public
     function ProcessChar(Ch: Char): TEscapeResult; override;
-    function EscCodeToStr(Code: TEscapeCode; AParams: TStrings): AnsiString; override;
+    function EscCodeToStr(Code: TEscapeCode; AParams: TStrings): String; override;
   end;
 
 implementation
@@ -147,7 +151,7 @@ begin
 end;
 
 // escape code to string
-function TEscapeCodesVT52.EscCodeToStr(Code: TEscapeCode; AParams: TStrings): AnsiString;
+function TEscapeCodesVT52.EscCodeToStr(Code: TEscapeCode; AParams: TStrings): String;
 begin
   case Code of
     ecCursorUp: Result := #27'A';
@@ -168,7 +172,7 @@ begin
 end;
 
 // get escape code from string
-function TEscapeCodesVT52.DetectCode(Str: string): TEscapeCode;
+function TEscapeCodesVT52.DetectCode(Str: String): TEscapeCode;
 begin
   Result := ecUnknown;
   case Str[1] of
@@ -245,8 +249,7 @@ begin
 end;
 
 // escape code to string conversion
-function TEscapeCodesVT100.EscCodeToStr(Code: TEscapeCode;
-  AParams: TStrings): AnsiString;
+function TEscapeCodesVT100.EscCodeToStr(Code: TEscapeCode;  AParams: TStrings): String;
 var
  s:String;
 begin
@@ -291,7 +294,7 @@ begin
 end;
 
 // get vt100 escape code from string
-function TEscapeCodesVT100.DetectCode(Str: string): TEscapeCode;
+function TEscapeCodesVT100.DetectCode(Str: String): TEscapeCode;
 begin
   if Length(Str) = 1 then
     case Str[1] of
@@ -320,15 +323,15 @@ begin
 end;
 
 // get extended vt100 escape code from string
-function TEscapeCodesVT100.DetectExtCode(Str: string): TEscapeCode;
+function TEscapeCodesVT100.DetectExtCode(Str: String): TEscapeCode;
 var
   LastCh: Char;
   TempParams: TStrings;
 
-  procedure ParseParams(Str: string);
+  procedure ParseParams(Str: String);
   var
     I: Integer;
-    TempStr: string;
+    TempStr: String;
   begin
     I := 1;
     TempStr := '';
@@ -336,7 +339,7 @@ var
     begin
       if (Str[I] = ';') and (TempStr <> '') then
       begin
-        TempParams.Add(TempStr);
+        TempParams.Add(StringToOleStr(TempStr));
         TempStr := '';
       end
       else
@@ -344,7 +347,7 @@ var
       Inc(I);
     end;
     if (TempStr <> '') then
-      TempParams.Add(TempStr);
+      TempParams.Add(StringToOleStr(TempStr));
   end;
 
   function CodeEraseScreen: TEscapeCode;
@@ -368,7 +371,7 @@ var
 
   function CodeEraseLine: TEscapeCode;
   var
-    Str: string;
+    Str: String;
   begin
     if TempParams.Count = 0 then
       Result := ecEraseLineFrom

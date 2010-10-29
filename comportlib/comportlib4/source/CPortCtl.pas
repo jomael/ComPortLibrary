@@ -1,6 +1,6 @@
 (******************************************************
  * ComPort Library ver. 3.0                           *
- *   for Delphi 3, 4, 5, 6, 7 and                     *
+ *   for Delphi 3, 4, 5, 6, 7, 2007-2010,XE  and      *
  *   C++ Builder 3, 4, 5, 6                           *
  * written by Dejan Crnila, 1998 - 2002               *
  * maintained by Lars B. Dybdahl, 2003                *
@@ -8,6 +8,10 @@
  *                                                    *
  * Fixed up for Delphi 2009 by W.Postma.  Oct 2008    *
  * More like completely rewritten, actually.          *
+ *                                                    *
+ * Brian Gochnauer Oct 2010                           *
+ *     Removed ansi references for backward compat    *
+ *     Made unicode ready                             *
  *****************************************************)
 
 { The visual com-port-related controls, and components used in
@@ -21,7 +25,7 @@ unit CPortCtl;
 interface
 
 uses
-  Classes, SysUtils, Controls, StdCtrls, ExtCtrls, Forms,
+  Classes, StrUtils, SysUtils, Controls, StdCtrls, ExtCtrls, Forms,
   Messages, Graphics, Windows, CPort, CPortEsc, CPortTypes;
 
 const
@@ -361,8 +365,8 @@ type
   end;
 
   TEscapeEvent = procedure(Sender: TObject; var EscapeCodes: TEscapeCodes) of object;
-  TUnhandledEvent = procedure(Sender: TObject; Code: TEscapeCode; Data: string) of object;
-  TStrRecvEvent = procedure(Sender: TObject; var Str: string) of object;
+  TUnhandledEvent = procedure(Sender: TObject; Code: TEscapeCode; Data: String) of object;
+  TStrRecvEvent = procedure(Sender: TObject; var Str: String) of object;
   TChScreenEvent = procedure(Sender: TObject; Ch: Char) of object;
 
   // communication terminal control
@@ -424,14 +428,14 @@ type
     procedure SetAttributes(AParams: TStrings);
     procedure SetMode(AParams: TStrings; OnOff: Boolean);
     procedure ShowCaret;
-    procedure StringReceived(Str: string);
+    procedure StringReceived(Str: String);
     procedure PaintTerminal(Rect: TRect);
     procedure PaintDesign;
     procedure PutChar(Ch: Char);
     function PutEscapeCode(ACode: TEscapeCode; AParams: TStrings): Boolean;
     procedure RestoreAttr;
     procedure RestoreCaretPos;
-    procedure RxBuf(Sender: TObject; const Buffer:PCPortAnsiChar; Count: Integer);
+    procedure RxBuf(Sender: TObject; const Buffer:PCharBuf; var Count: Integer);
     procedure SaveAttr;
     procedure SaveCaretPos;
     procedure SendChar(Ch: Char);
@@ -462,8 +466,8 @@ type
     procedure Paint; override;
     procedure DoChar(Ch: Char); dynamic;
     procedure DoGetEscapeCodes(var EscapeCodes: TEscapeCodes); dynamic;
-    procedure DoStrRecieved(var Str: string); dynamic;
-    procedure DoUnhandledCode(Code: TEscapeCode; Data: string); dynamic;
+    procedure DoStrRecieved(var Str: String); dynamic;
+    procedure DoUnhandledCode(Code: TEscapeCode; Data: String); dynamic;
   public
 
     procedure SetTermAttrColors( FrontColor,BackColor:TColor; AltIntensity,Invert:Boolean); //WARREN ADDED
@@ -473,8 +477,8 @@ type
     destructor Destroy; override;
     procedure ClearScreen;
     procedure MoveCaret(AColumn, ARow: Integer);
-    procedure Write(const Buffer:PCPortAnsiChar; Size: Integer);
-    procedure WriteStr(const Str: string);
+    procedure Write(const Buffer:PChar; Size: Integer);
+    procedure WriteStr(const Str: String);
     procedure WriteEscCode(ACode: TEscapeCode; AParams: TStrings);
     procedure LoadFromStream(Stream: TStream);
     procedure SaveToStream(Stream: TStream);
@@ -1594,17 +1598,12 @@ begin
 end;
 
 // write data to screen (ancient const-Buffer-untyped)
-procedure TCustomComTerminal.Write(const Buffer:PCPortAnsiChar; Size: Integer);
-var
- Str:AnsiString;
+procedure TCustomComTerminal.Write(const Buffer:PChar; Size: Integer);
 begin
-//  SetLength(Str,Size);
-//  Move(Buffer,Str,Size);
-SetString(Str,PAnsiChar(Buffer),Size);
-  WriteStr(  String(str));
+  WriteStr(buffer);
 end;
 
-procedure TCustomComTerminal.WriteStr(const Str: string);
+procedure TCustomComTerminal.WriteStr(const Str: String);
 var
   I: Integer;
   Res: TEscapeResult;
@@ -1620,7 +1619,8 @@ begin
       begin
         Res := FEscapeCodes.ProcessChar(Ch);
         if Res = erChar then
-          PutChar(FEscapeCodes.Character);
+          PutChar(FEscapeCodes.Character)
+        else
         if Res = erCode then
         begin
           if not PutEscapeCode(FEscapeCodes.Code, FEscapeCodes.Params) then
@@ -1666,7 +1666,7 @@ procedure TCustomComTerminal.SaveToStream(Stream: TStream);
 var
   I, J, LastChar, LastLine: Integer;
   Ch: Char;
-  EndLine: string;
+  EndLine: String;
 begin
   EndLine := #13#10;
   LastLine := FBuffer.GetLastLine;
@@ -1883,7 +1883,7 @@ end;
 procedure TCustomComTerminal.KeyPress(var Key: Char);
 begin
   inherited KeyPress(Key);
-  SendChar(Key);
+  SendChar(key);
 end;
 
 procedure TCustomComTerminal.Loaded;
@@ -1971,7 +1971,7 @@ begin
 end;
 
 // string received from com port
-procedure TCustomComTerminal.StringReceived(Str: string);
+procedure TCustomComTerminal.StringReceived(Str: String);
 begin
   DoStrRecieved(Str);
   WriteStr(Str);
@@ -2275,6 +2275,7 @@ end;
 
 // send Character to com port
 procedure TCustomComTerminal.SendChar(Ch: Char); { WAP Modified }
+var s:string;
 begin
    if FLocalEcho then
    begin
@@ -2288,10 +2289,11 @@ begin
             ShowCaret;
       end;
    end;
-    
+
   if (FComPort <> nil) and (FComPort.Connected) then
   begin
-    FComPort.WriteStr( AnsiString(Ch) );
+    setlength(s,1); s[1] := ch;
+    FComPort.WriteStr( s);//ansistring(ch) );
     // send line feeds after carriage return
     if (Ch = Chr(13)) and FSendLF then
       SendChar(Chr(10));
@@ -2412,15 +2414,14 @@ begin
 end;
 
 // string recieved
-procedure TCustomComTerminal.DoStrRecieved(var Str: string);
+procedure TCustomComTerminal.DoStrRecieved(var Str: String);
 begin
   if Assigned(FOnStrRecieved) then
     FOnStrRecieved(Self, Str);
 end;
 
 // let application handle unhandled escape code
-procedure TCustomComTerminal.DoUnhandledCode(Code: TEscapeCode;
-  Data: string);
+procedure TCustomComTerminal.DoUnhandledCode(Code: TEscapeCode; Data: String);
 begin
   if Assigned(FOnUnhandledCode) then
     FOnUnhandledCode(Self, Code, Data);
@@ -2543,10 +2544,8 @@ begin
   FSaveAttr := FTermAttr;
 end;
 
-procedure TCustomComTerminal.RxBuf(Sender: TObject; const Buffer:PCPortAnsiChar;
-  Count: Integer);
-var
-  Str: AnsiString;   { Do not change to String. Critical to functionality in Delphi2009! }
+procedure TCustomComTerminal.RxBuf(Sender: TObject; const Buffer:PCharBuf; var Count: Integer);
+var Str: String;
 
   // append line feeds to carriage return
   procedure AppendLineFeeds;
@@ -2564,33 +2563,22 @@ var
 
   // convert to 7 bit data
   procedure Force7BitData;
-  var
-    I: Integer;
+  var    I: Integer;
   begin
     for I := 1 to Length(Str) do
-      Str[I] := AnsiChar(Byte(Str[I]) and $7F); {bugfix}
+      Str[I] := Char(Byte(AnsiChar(Str[I])) and $7F); {bugfix}
   end;
 
 begin
-  if (Count>RxSanityLimit) then
-      exit;
-  if Buffer[0]=AnsiChar(0) then begin
-      OutputDebugString('nul');
-  end;
-
-  // ancient and rather idiom removed:
-    SetLength(Str,Count);
-    Move(PAnsiChar(Buffer)^,PAnsiChar(Str)^,Count);
-    //Move( .... );
- // slightly more modern, but still archaic idiom substituted:
-//  SetString( Str,PAnsiChar(Buffer),Count);
-
+  if (Count > RxSanityLimit) then exit;
+  SetString(Str,pchar(Buffer),Count);
 
   if FAppendLF then
     AppendLineFeeds;
   if FForce7Bit then
     Force7BitData;
-  StringReceived(String(Str));
+
+  StringReceived(Str);
 end;
 
 function TCustomComTerminal.GetConnected: Boolean;
