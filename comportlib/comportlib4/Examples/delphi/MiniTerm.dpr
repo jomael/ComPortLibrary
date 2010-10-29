@@ -1,10 +1,8 @@
-program MiniTerm2009;
+program MiniTerm;
 
 uses
   Forms,
-  MTMainForm in 'MTMainForm.pas' {MainForm},
-  CPort in '..\..\source\CPort.pas',
-  CPortCtl in '..\..\source\CPortCtl.pas';
+  MTMainForm in 'MTMainForm.pas' {MainForm};
 
 {$R *.RES}
 

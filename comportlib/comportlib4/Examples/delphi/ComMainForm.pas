@@ -4,7 +4,7 @@ interface
 
 uses
   Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs,
-  StdCtrls, ExtCtrls, CPort, CPortCtl;
+  StdCtrls, ExtCtrls, CPort, CPortTypes, CPortCtl;
 
 type
   TForm1 = class(TForm)
@@ -38,6 +38,7 @@ type
     procedure ComPortRxChar(Sender: TObject; Count: Integer);
     procedure Bt_LoadClick(Sender: TObject);
     procedure Bt_StoreClick(Sender: TObject);
+    procedure ComPortBeforeOpen(Sender: TObject);
   private
     { Private declarations }
   public
@@ -71,12 +72,20 @@ begin
   Str := Edit_Data.Text;
   if NewLine_CB.Checked then
     Str := Str + #13#10;
-  ComPort.WriteStr(Str);
+  if not ComPort.Connected then ComPort.Open;
+  if ComPort.Connected then
+    ComPort.WriteStr(Str);
 end;
 
 procedure TForm1.ComPortOpen(Sender: TObject);
 begin
   Button_Open.Caption := 'Close';
+end;
+
+procedure TForm1.ComPortBeforeOpen(Sender: TObject);
+begin
+  if FileExists(ChangeFileExt(ParamStr(0),'ini')) then
+    ComPort.LoadSettings(stIniFile, ChangeFileExt(ParamStr(0),'ini'));
 end;
 
 procedure TForm1.ComPortClose(Sender: TObject);
@@ -91,18 +100,17 @@ var
 begin
   ComPort.ReadStr(Str, Count);
   Memo.Text := Memo.Text + Str;
+  count := 0; //indicate done processing buf;
 end;
 
 procedure TForm1.Bt_LoadClick(Sender: TObject);
 begin
-  ComPort.LoadSettings(stRegistry, 'HKEY_LOCAL_MACHINE\Software\Dejan');
-//  ComPort.LoadSettings(stIniFile, 'e:\Test.ini');
+  ComPort.LoadSettings(stIniFile, ChangeFileExt(ParamStr(0),'ini'));
 end;
 
 procedure TForm1.Bt_StoreClick(Sender: TObject);
 begin
-//  ComPort.StoreSettings(stIniFile, 'e:\Test.ini');
-  ComPort.StoreSettings(stRegistry, 'HKEY_LOCAL_MACHINE\Software\Dejan');
+  ComPort.StoreSettings(stIniFile, ChangeFileExt(ParamStr(0),'ini'));
 end;
 
 end.

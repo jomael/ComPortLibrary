@@ -4,7 +4,7 @@ interface
 
 uses
   Windows, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs,
-  CPort, StdCtrls, CPortCtl, ExtCtrls, Menus,IniFiles;
+  CPort, StdCtrls, CPortCtl, ExtCtrls, Menus,IniFiles, ComCtrls;
 
 type
   TMainForm = class(TForm)
@@ -23,6 +23,8 @@ type
     Copy1: TMenuItem;
     Paste1: TMenuItem;
     Button1: TButton;
+    ComDataPacket1: TComDataPacket;
+    StatusBar1: TStatusBar;
     procedure ConnButtonClick(Sender: TObject);
     procedure ComPortAfterOpen(Sender: TObject);
     procedure ComPortAfterClose(Sender: TObject);
@@ -33,6 +35,11 @@ type
     procedure FormShow(Sender: TObject);
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
     procedure Button1Click(Sender: TObject);
+    procedure ComDataPacket1Packet(Sender: TObject; const Str: string);
+    procedure ComDataPacket1CustomStart(Sender: TObject; const Str: string;
+      var Pos: Integer);
+    procedure ComDataPacket1CustomStop(Sender: TObject; const Str: string;
+      var Pos: Integer);
   private
     { Private declarations }
     FInitFlag:Boolean;
@@ -59,18 +66,36 @@ begin
   ConnButton.Caption := 'Disconnect';
 end;
 
+procedure TMainForm.ComDataPacket1CustomStart(Sender: TObject;
+                                          const Str: string; var Pos: Integer);
+begin
+  if pos >= 0 then
+  StatusBar1.Panels[1].Text := 'Start @'+IntToSTr(pos);
+end;
+
+procedure TMainForm.ComDataPacket1CustomStop(Sender: TObject; const Str: string;
+                                                            var Pos: Integer);
+begin
+  if Pos >=0 then
+   StatusBar1.Panels[2].Text  := 'Stop @'+IntToSTr(pos);
+end;
+
+procedure TMainForm.ComDataPacket1Packet(Sender: TObject; const Str: string);
+begin
+  StatusBar1.Panels[0].Text := 'FOUND: '+str+  '                                  '  ;
+  ComDataPacket1.ResetBuffer;
+end;
+
 procedure TMainForm.ComPortAfterClose(Sender: TObject);
 begin
   ConnButton.Caption := 'Connect';
 end;
 
 procedure TMainForm.Paste1Click(Sender: TObject);
-var
- clipboardStr:String;
+var s:string;
 begin
-  clipboardStr := Clipboard.AsText;
-//  ComTerminal.WriteStr(clipboardStr);
-  ComPort.WriteStr( AnsiString(clipboardStr) );
+  s  := Clipboard.AsText;
+  ComPort.WriteStr(s);
 end;
 
 procedure TMainForm.PortButtonClick(Sender: TObject);
@@ -103,19 +128,18 @@ procedure TMainForm.FormShow(Sender: TObject);
 begin
  if not FInitFlag then begin
    FInitFlag := true;
-
    FIni := TMemIniFile.Create( ExtractFilePath(Application.ExeName)+'terminal.ini');
    ComPort.Port := FIni.ReadString('ComPort', 'ComPort',ComPort.Port);
    ComPort.BaudRate := StrToBaudRate( FIni.ReadString('ComPort','BaudRate', '19200'));
    ComPort.FlowControl.FlowControl := StrToFlowControl( FIni.ReadString('ComPort','FlowControl', 'Hardware'));
-   ConnButtonClick(Sender);
+   ConnButton.Click;
 
  end;
 end;
 
 procedure TMainForm.Button1Click(Sender: TObject);
 var
-  s:AnsiString;
+  s:String;
 begin
   { This test shows how to work with a TComPort without any visual controls
    attached, and without any background event thread or Win32 overlapped I/O.
@@ -129,7 +153,7 @@ begin
    ComPort.Overlapped := false;
    ComPort.Connected := true;
    ComPort.WriteStr('AT'+CHR(13));  {Send modem Command}
-   Sleep(5);
+   Sleep(200);
    ComPort.ReadStr(S,80); {Get modem response.}
    if Pos('OK',s)>0 then
         Application.MessageBox( PChar('Modem is responding normally on '+ComPort.Port),

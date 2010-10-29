@@ -4,6 +4,7 @@ program ModTest;
 uses
   SysUtils,
   CPort,
+  CPortTypes,
   Windows,
   SyncObjs;
 
