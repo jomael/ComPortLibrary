@@ -74,6 +74,7 @@ type
     procedure Execute; override;
     procedure SendEvents;
     procedure Stop;
+    class procedure SetDebugName(AThreadName: String); static;
   public
     constructor Create(AComPort: TCustomComPort);
     destructor Destroy; override;
@@ -774,8 +775,8 @@ begin
     KEY_READ,
     KeyHandle);
 
-  if ErrCode <> ERROR_SUCCESS then
-    raise EComPort.Create(CError_RegError, ErrCode, 'registry read');
+  if ErrCode <> ERROR_SUCCESS then exit;
+   // raise EComPort.Create(CError_RegError, ErrCode, 'registry read');
 
   TmpPorts := TStringList.Create;
   try
@@ -789,11 +790,11 @@ begin
         KeyHandle,
         Index,
         PChar(ValueName),
-{$IFDEF DELPHI_4_OR_HIGHER}
+        {$IFDEF DELPHI_4_OR_HIGHER}
         Cardinal(ValueLen),
-{$ELSE}
+        {$ELSE}
         ValueLen,
-{$ENDIF}
+        {$ENDIF}
         nil,
         @ValueType,
         PByte(PChar(Data)),
@@ -806,8 +807,8 @@ begin
         Inc(Index);
       end
       else
-        if ErrCode <> ERROR_NO_MORE_ITEMS then
-          raise EComPort.Create(CError_RegError, ErrCode, 'registry read');
+        if ErrCode <> ERROR_NO_MORE_ITEMS then break;
+          //raise EComPort.Create(CError_RegError, ErrCode, 'registry read');
 
     until (ErrCode <> ERROR_SUCCESS) ;
 
@@ -1010,6 +1011,31 @@ begin
   // execute thread
   Resume;
 end;
+
+class procedure TComThread.SetDebugName(AThreadName: String);
+type
+  TThreadNameInfo = record
+    FType: LongWord;     // must be 0x1000
+    FName: PAnsiChar;    // pointer to name (in user address space)
+    FThreadID: LongWord; // thread ID (-1 indicates caller thread)
+    FFlags: LongWord;    // reserved for future use, must be zero
+  end;
+var
+  ThreadNameInfo: TThreadNameInfo;
+  ThrName : AnsiString;
+begin
+    ThrName := AnsiString(AThreadName);
+    ThreadNameInfo.FType := $1000;
+    ThreadNameInfo.FName := PAnsiChar(ThrName);
+    ThreadNameInfo.FThreadID := $FFFFFFFF;
+    ThreadNameInfo.FFlags := 0;
+
+    try
+      RaiseException($406D1388, 0, sizeof(ThreadNameInfo) div sizeof(LongWord), @ThreadNameInfo);
+    except
+    end;
+end;
+
 
 // destroy thread
 destructor TComThread.Destroy;
@@ -2841,10 +2867,7 @@ end;
 procedure TCustomComPort.DoRxChar(var Count: Integer);
 begin
   if Assigned(FOnRxChar) then
-  begin
-    if count > 0 then FOnRxChar(Self, Count);
-    count := 0;    //user should really set this zero to indicate process of buf
-  end;
+    FOnRxChar(Self, Count);
 end;
 
 procedure TCustomComPort.DoRxBuf(const mBuffer:PCharBuf; var Count: Integer);
