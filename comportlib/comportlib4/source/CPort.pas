@@ -74,7 +74,8 @@ type
     procedure Execute; override;
     procedure SendEvents;
     procedure Stop;
-    class procedure SetDebugName(AThreadName: String); static;
+    class procedure SetDebugName(AThreadName: String);
+                           {$IFDEF DELPHI_8_OR_HIGHER} Static; {$ENDIF}
   public
     constructor Create(AComPort: TCustomComPort);
     destructor Destroy; override;
@@ -1747,16 +1748,17 @@ begin
     else
     begin
       if (FSyncMethod = smWindowSync) then
-{$IFDEF DELPHI_6_OR_HIGHER}
-  {$WARN SYMBOL_DEPRECATED OFF}
-{$ENDIF}
+      {$IFDEF DELPHI_6_OR_HIGHER}
+         {$WARN SYMBOL_DEPRECATED OFF}
+      {$ENDIF}
         FWindow := AllocateHWnd(WindowMethod);
-{$IFDEF DELPHI_6_OR_HIGHER}
-  {$WARN SYMBOL_DEPRECATED ON}
-{$ENDIF}
+      {$IFDEF DELPHI_6_OR_HIGHER}
+        {$WARN SYMBOL_DEPRECATED ON}
+      {$ENDIF}
       if FOverlapped then begin
         FEventThread := TComThread.Create(Self); { thread is now optional! major change! }
         FThreadCreated := True;
+        FEventThread.SetDebugName('ComPort4Thrd_'+Port);
       end;
     end;
     // port is succesfully opened, do any additional initialization
@@ -1779,13 +1781,13 @@ begin
       FEventThread.Free;
       FThreadCreated := False;
       if FSyncMethod = smWindowSync then
-{$IFDEF DELPHI_6_OR_HIGHER}
-  {$WARN SYMBOL_DEPRECATED OFF}
-{$ENDIF}
+      {$IFDEF DELPHI_6_OR_HIGHER}
+        {$WARN SYMBOL_DEPRECATED OFF}
+      {$ENDIF}
         DeallocateHWnd(FWindow);
-{$IFDEF DELPHI_6_OR_HIGHER}
-  {$WARN SYMBOL_DEPRECATED ON}
-{$ENDIF}
+      {$IFDEF DELPHI_6_OR_HIGHER}
+        {$WARN SYMBOL_DEPRECATED ON}
+      {$ENDIF}
     end;
     // close port
     DestroyHandle;
